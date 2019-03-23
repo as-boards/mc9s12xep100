@@ -5,10 +5,10 @@ cwd = GetCurrentDir()
 Import('asenv')
 ASROOT = asenv['ASROOT']
 
-def IsNeedBuild(obj):
+def IsNeedBuild(obj, target):
     if(GetOption('force')):
         return True
-    robj = 'build/any/%s.o'%(os.path.basename(obj)[:-2])
+    robj = 'build/%s/%s.o'%(target, os.path.basename(obj)[:-2])
     if(os.path.exists(robj)):
         rtm = os.path.getmtime(robj)
         stm = os.path.getmtime(obj)
@@ -18,7 +18,7 @@ def IsNeedBuild(obj):
 
 def Program9S12(target, objs, env):
     if(GetOption('clean')):
-        RunCommand('rm -fv build/any/*.o')
+        RunCommand('rm -fv build/%s/*.o'%(target))
         exit()
     cw = os.getenv('CWCC_PATH')
     if(cw is None):
@@ -32,20 +32,21 @@ def Program9S12(target, objs, env):
         if('sim' in COMMAND_LINE_TARGETS):
             cmd = HIWAVE+'-W -Prod=Full_Chip_Simulation.ini -instance=sim '+os.path.abspath('any.abs')
         print('cmd is:', cmd)
-        with open('run9s12.bat','w') as fp:
+        with open('build/%s/run9s12.bat'%(target),'w') as fp:
             fp.write('@echo off\ncd %s/Project\n%s\n'%(cwd,cmd))
-        if(0 != os.system('run9s12')):
+        if(0 != os.system('build/%s/run9s12'%(target))):
             print('run of %s failed\n  %s\n'%(target, cmd))
         exit()
     CC   = cw + '/Prog/chc12.exe'
     AS   = cw + '/Prog/ahc12.exe'
     LINK = cw + '/Prog/linker.exe'
+    S19  = cw + '/Prog/burner.exe'
     MAKE = '"{0}/Prog/piper.exe" "{0}/Prog/maker.exe"'.format(cw)
-    with open('.makefile.9s12','w') as fp:
+    with open('build/%s/makefile.9s12'%(target),'w') as fp:
         fp.write('CC = "%s"\n'%(CC))
         fp.write('AS = "%s"\n'%(AS))
         fp.write('LD = "%s"\n'%(LINK))
-        fp.write('COMMON_FLAGS = -WErrFileOff -WOutFileOff -EnvOBJPATH=build/any\n')
+        fp.write('COMMON_FLAGS = -WErrFileOff -WOutFileOff -EnvOBJPATH=build/%s\n'%(target))
         fp.write('C_FLAGS   = -I"%s/lib/hc12c/include" -Mb -CpuHCS12X\n'%(cw))
         fp.write('ASM_FLAGS = -I"%s/lib/hc12c/include" -Mb -CpuHCS12X\n'%(cw))
         fp.write('LD_FLAGS  = -M -WmsgNu=abcet\n')
@@ -62,13 +63,13 @@ def Program9S12(target, objs, env):
         for obj in objs:
             obj = str(obj)
             if(obj.endswith('.c') or obj.endswith('.C')):
-                if(IsNeedBuild(obj)):
+                if(IsNeedBuild(obj,target)):
                     fp.write(obj[:-2]+'.o ')
         fp.write('\n\nOBJS_LINK = ')
         for obj in objs:
             obj = str(obj)
             if(obj.endswith('.c') or obj.endswith('.C')):
-                fp.write('build/any/%s.o '%(os.path.basename(obj)[:-2]))
+                fp.write('build/%s/%s.o '%(target, os.path.basename(obj)[:-2]))
         fp.write('''\n
 .asm.o:
     $(ASM) $*.asm $(COMMON_FLAGS) $(ASM_FLAGS)
@@ -77,16 +78,16 @@ def Program9S12(target, objs, env):
     $(CC) $*.c $(INC) $(COMMON_FLAGS) $(C_FLAGS)
 
 all:$(OBJS) {0}.abs
-    echo "done all"
+    {2} OPENFILE "{0}.s19" format=motorola busWidth=1 origin=0 len=0x10000 destination=0 SRECORD=Sx SENDBYTE 1 "{0}.abs" CLOSE
 
 {0}.abs :
     $(LD) {1} $(COMMON_FLAGS) $(LD_FLAGS) -Add($(OBJS_LINK)) -Add($(LIBS)) -M -O$*.abs'''.format(
-        target, env['LINK_SCRIPTS'])
+        target, env['LINK_SCRIPTS'], S19)
     )
-    cmd = '%s .makefile.9s12'%(MAKE)
-    with open('build9s12.bat','w') as fp:
+    cmd = '%s build/%s/makefile.9s12'%(MAKE, target)
+    with open('build%s.bat'%(target),'w') as fp:
         fp.write('@echo off\n%s\n'%(cmd))
-    if(0 != os.system('build9s12')):
+    if(0 != os.system('build%s'%(target))):
         print('build of %s failed\n  %s\n'%(target, cmd))
 
 asenv['Program'] = Program9S12
@@ -114,7 +115,13 @@ if(asenv['RELEASE']=='asboot'):
                'SHELL','RINGBUFFER','CLIB_STRTOK_R',
                'MPC9S12XEP100'
            ]
-    asenv.Append(CPPDEFINES=['CMDLINE_MAX=256','FLASH_CMD_MAX_DATA=512'])
+    asenv['LINK_SCRIPTS'] = '%s/miniblt/prm/Project.prm'%(cwd)
+
+    lds = '%s/com/as.application/board.bcm2835/script/linker-flsdrv.lds'%(ASROOT)
+    asenv['flsdrv'] = {'CPPPATH':['%s/com/as.infrastructure/include'%(ASROOT),
+                                  '%s/Project/Sources'%(cwd)],
+                       'LINK_SCRIPTS':'%s/flsdrv/prm/Project.prm'%(cwd),
+                       'objs':Glob('mcal/Flash.c')+Glob('miniblt/Sources/mc9s12xep100.c')}
 
 ARCH='none'
 arch='9s12x'
@@ -138,6 +145,7 @@ else:
 asenv.Append(CPPPATH=['%s/../../board.posix/common'%(cwd)])
 asenv.Append(CPPDEFINES=['IS_ARCH16',
                          '_G_va_list=va_list',
+                         'OS_TICKS_PER_SECOND=244',
                          'DCM_DEFAULT_RXBUF_SIZE=512',
                          'DCM_DEFAULT_TXBUF_SIZE=512'])
 
@@ -149,5 +157,9 @@ if('CAN' in MODULES):
 
 if('SHELL' in MODULES):
     asenv.Append(CPPDEFINES=['USE_SHELL_WITHOUT_TASK','ENABLE_SHELL_ECHO_BACK'])
+    asenv.Append(CPPDEFINES=['CMDLINE_MAX=64','FLASH_CMD_MAX_DATA=64'])
+
+if('FLASH' in MODULES):
+    asenv.Append(CPPDEFINES=['FLASH_DRIVER_STARTADDRESS=0x3900'])
 
 Return('objs')

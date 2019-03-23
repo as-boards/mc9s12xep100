@@ -25,22 +25,48 @@
 /* ============================ [ MACROS    ] ====================================================== */
 #define LEDCPU     PORTK_PK4
 #define LEDCPU_dir DDRK_DDRK4
+
+#define OSCCLK 16000000
 /* ============================ [ TYPES     ] ====================================================== */
 /* ============================ [ DECLARES  ] ====================================================== */
 extern void OsTick(void);
 extern TickType OsTickCounter;
 /* ============================ [ DATAS     ] ====================================================== */
-char FlashDriverRam[4096];
+#pragma DATA_SEG __NEAR_SEG FLASH_RAM
+char FlashDriverRam[512] @ 0x3900;
+#pragma DATA_SEG DEFAULT
 /* ============================ [ LOCALS    ] ====================================================== */
 const Mcu_ConfigType const McuConfigData[1];
 /* ============================ [ FUNCTIONS ] ====================================================== */
-
+/*
+#python code to search the best for the given expect period
+OSCLK = 16*1000000
+expect = 1/100
+diff = OSCLK
+best = None
+# RTDEC = 0
+for rtr30 in range(16):
+  for rtr64 in range(8):
+    period = (rtr30+1)*2**(rtr64+9)/OSCLK
+    ndiff = abs(period-expect)
+    if(ndiff < diff):
+      diff = ndiff
+      best = (0, rtr64, rtr30, period, diff)
+# RTDEC = 1
+TABLE = [1,2,5,10,20,50,100,200]
+for rtr30 in range(16):
+  for rtr64 in range(8):
+    period = (rtr30+1)*TABLE[rtr64]*1000/OSCLK
+    ndiff = abs(period-expect)
+    if(ndiff < diff):
+      diff = ndiff
+      best = (1, rtr64, rtr30, period, diff)
+print('best is', hex((best[0]<<7)+(best[1]<<4)+best[2]))
+ */
 void StartOsTick(void)
 {
-	CRGINT_RTIE=1;       //enable real-time interrupt
-	RTICTL = 0x70;       //period is 4.096ms
-	//OSCCLK = 16 x 10E6
-	//RTI ISR period =  1/OSCCLK * (0+1) * 2E(7+9)=0.004096s=4.096ms
+	RTICTL = 0xc7;       /* period is 10ms */
+	CRGINT_RTIE=1;       /* enable real-time interrupt */
 }
 
 void BL_HwInit(void)
@@ -51,7 +77,7 @@ void BL_HwInit(void)
 void BL_HwMonitor(void)
 {
 	static TickType timer = 0;
-	if((OsTickCounter-timer) >= 125)
+	if((OsTickCounter-timer) >= (OS_TICKS_PER_SECOND/2))
 	{
 		LEDCPU=~LEDCPU;
 		timer = OsTickCounter;

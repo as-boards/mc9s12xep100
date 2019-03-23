@@ -1,0 +1,58 @@
+/* This is a linker parameter file for the MC9S12XEP100 */
+
+/*
+This file is setup to use the HCS12X core only.
+If you plan to also use the XGATE in your project, best create a new project with the
+'New Project Wizard' (File|New... menu in the CodeWarrior IDE) and choose the appropriate
+project parameters.
+*/
+
+NAMES
+    /* CodeWarrior will pass all the needed files to the linker by command line. But here you may add your additional files */
+END
+
+SEGMENTS /* here all RAM/ROM areas of the device are listed. Used in PLACEMENT below. All addresses are 'logical' */
+      RAM        = READ_WRITE  DATA_NEAR          0x3800 TO 0x38FF; /* In fact not used */
+      ROM        = READ_ONLY   DATA_NEAR          0x3900 TO 0x3FFF; 
+END
+
+PLACEMENT /* here all predefined and user segments are placed into the SEGMENTS defined above. */
+      _PRESTART,              /* Used in HIWARE format: jump to _Startup at the code start */
+      STARTUP,                /* startup data structures */
+      ROM_VAR,                /* constant variables */
+      STRINGS,                /* string literals */
+      VIRTUAL_TABLE_SEGMENT,  /* C++ virtual table segment */
+    //.ostext,                /* eventually OSEK code  */
+      NON_BANKED,             /* runtime routines which must not be banked */
+                        INTO  ROM;
+
+      DEFAULT_ROM       INTO           ROM;
+
+    //.stackstart,            /* eventually used for OSEK kernel awareness: Main-Stack Start */
+      SSTACK,                 /* allocate stack first to avoid overwriting variables on overflow */
+    //.stackend,              /* eventually used for OSEK kernel awareness: Main-Stack End */
+      DEFAULT_RAM             /* all variables, the default RAM location */
+                        INTO  RAM;
+
+      PAGED_RAM         INTO  RAM;
+
+      DISTRIBUTE        DISTRIBUTE_INTO
+                              ROM;
+      CONST_DISTRIBUTE  DISTRIBUTE_INTO
+                              ROM;
+      DATA_DISTRIBUTE   DISTRIBUTE_INTO
+                              RAM;
+    //.vectors          INTO  OSVECTORS; /* OSEK vector table */
+END
+
+
+ENTRIES /* keep the following unreferenced variables */
+    /* OSEK: always allocate the vector table and all dependent objects */
+  //_vectab OsBuildNumber _OsOrtiStackStart _OsOrtiStart
+END
+
+STACKSIZE 0
+/* use these definitions in plane of the vector table ('vectors') above */
+//VECTOR 0 _Startup /* reset vector: this is the default entry point for a C/C++ application. */
+//VECTOR 0 Entry  /* reset vector: this is the default entry point for an Assembly application. */
+//INIT Entry      /* for assembly applications: that this is as well the initialization entry point */

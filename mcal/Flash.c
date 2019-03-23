@@ -1,0 +1,244 @@
+/**
+ * AS - the open source Automotive Software on https://github.com/parai
+ *
+ * Copyright (C) 2019  AS <parai@foxmail.com>
+ *
+ * This source code is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by the
+ * Free Software Foundation; See <http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt>.
+ *
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+ * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
+ * for more details.
+ */
+/* ============================ [ INCLUDES  ] ====================================================== */
+#include "Std_Types.h"
+#include <hidef.h>
+#include "derivative.h"
+#define FLASH_IS_ERASE_ADDRESS_ALIGNED(a) ( \
+		(0 == ((a)&0x3FF))					\
+	)
+
+#ifndef FLASH_WRITE_SIZE
+#define FLASH_WRITE_SIZE 8
+#endif
+
+#include "Flash.h"
+#include "asdebug.h"
+/* ============================ [ MACROS    ] ====================================================== */
+#if FLASH_WRITE_SIZE%8 != 0
+#error FLASH_WRITE_SIZE must be n times of 8
+#endif
+
+#define IS_FLASH_ADDRESS(a) (									\
+		(((a) < 0xC000) && ((a) >= 0x8000)) ||					\
+		( (((a)>>16) < 0xFD) && (((a)>>16) >= 0xC0) &&			\
+		  (((a)&0xFFFF) < 0xC000) && (((a)&0xFFFF) >= 0x8000) ) \
+		)
+
+#define AS_LOG_FLS 0
+
+#define FlashHeader _Startup
+/* ============================ [ TYPES     ] ====================================================== */
+/* ============================ [ DECLARES  ] ====================================================== */
+/* ============================ [ DATAS     ] ====================================================== */
+const tFlashHeader FlashHeader =
+{
+	/* .Info */1+(2<<8)+(169<<24),
+	/*.Init      =*/ FlashInit,
+	/*.Deinit    =*/ FlashDeinit,
+	/*.Erase     =*/ FlashErase,
+	/*.Write     =*/ FlashWrite,
+	/*.Read      =*/ FlashRead
+};
+/* ============================ [ LOCALS    ] ====================================================== */
+/* ============================ [ FUNCTIONS ] ====================================================== */
+void FlashInit(tFlashParam* FlashParam)
+{
+	if ( (FLASH_DRIVER_VERSION_PATCH == FlashParam->patchlevel) ||
+		 (FLASH_DRIVER_VERSION_MINOR == FlashParam->minornumber) ||
+		 (FLASH_DRIVER_VERSION_MAJOR == FlashParam->majornumber) )
+	{
+		while(FSTAT_CCIF==0);
+		FCLKDIV=0x0F;
+		FCNFG=0x00;
+		while(FCLKDIV_FDIVLD==0);
+		FlashParam->errorcode = kFlashOk;
+	}
+	else
+	{
+		FlashParam->errorcode = kFlashFailed;
+	}
+}
+
+void FlashDeinit(tFlashParam* FlashParam)
+{
+	/*  TODO: Deinit Flash Controllor */
+	FlashParam->errorcode = kFlashOk;
+}
+
+void FlashErase(tFlashParam* FlashParam)
+{
+	tAddress address;
+	tLength  length;
+	uint32 num;
+	uint32 tmp;
+	volatile struct FLASH_tag * hw;
+	if ( (FLASH_DRIVER_VERSION_PATCH == FlashParam->patchlevel) ||
+		 (FLASH_DRIVER_VERSION_MINOR == FlashParam->minornumber) ||
+		 (FLASH_DRIVER_VERSION_MAJOR == FlashParam->majornumber) )
+	{
+		length = FlashParam->length;
+		address = FlashParam->address;
+		if ( (FALSE == FLASH_IS_ERASE_ADDRESS_ALIGNED(address)) ||
+			 (FALSE == IS_FLASH_ADDRESS(address)) )
+		{
+			FlashParam->errorcode = kFlashInvalidAddress;
+		}
+		else if( (FALSE == IS_FLASH_ADDRESS(address+length)) ||
+				 (FALSE == FLASH_IS_ERASE_ADDRESS_ALIGNED(address+length)) )
+		{
+			FlashParam->errorcode = kFlashInvalidSize;
+		}
+		else
+		{
+			while((length > 0) && (kFlashOk == FlashParam->errorcode))
+			{
+				while(FSTAT_CCIF==0);
+				if(FSTAT_ACCERR)
+					FSTAT_ACCERR=1;
+				if(FSTAT_FPVIOL)
+					FSTAT_FPVIOL=1;
+
+				FCCOBIX_CCOBIX=0x00;
+				FCCOB=(0x0A<<8)+(address>>16);	/* Erase P-Flash Sector */
+				FCCOBIX_CCOBIX=0x01;
+				FCCOB=address&0xFFFF;
+				FSTAT_CCIF=1;
+				while(FSTAT_CCIF==0);
+
+				address += 1024;
+				length  -= 1024;
+			}
+		}
+	}
+	else
+	{
+		FlashParam->errorcode = kFlashFailed;
+	}
+}
+
+void FlashWrite(tFlashParam* FlashParam)
+{
+	tAddress address;
+	tLength  length;
+	tData*    data;
+	uint32 tmp;
+	volatile struct FLASH_tag * hw;
+	if ( (FLASH_DRIVER_VERSION_PATCH == FlashParam->patchlevel) ||
+		 (FLASH_DRIVER_VERSION_MINOR == FlashParam->minornumber) ||
+		 (FLASH_DRIVER_VERSION_MAJOR == FlashParam->majornumber) )
+	{
+		length = FlashParam->length;
+		address = FlashParam->address;
+		data = FlashParam->data;
+		if ( (FALSE == FLASH_IS_WRITE_ADDRESS_ALIGNED(address)) ||
+			 (FALSE == IS_FLASH_ADDRESS(address)) )
+		{
+			FlashParam->errorcode = kFlashInvalidAddress;
+		}
+		else if( (FALSE == IS_FLASH_ADDRESS(address+length)) ||
+				 (FALSE == FLASH_IS_WRITE_ADDRESS_ALIGNED(length)) )
+		{
+			FlashParam->errorcode = kFlashInvalidSize;
+		}
+		else if( NULL == data )
+		{
+			FlashParam->errorcode = kFlashInvalidData;
+		}
+		else
+		{
+			while((length > 0) && (kFlashOk == FlashParam->errorcode))
+			{
+				while(FSTAT_CCIF==0);
+				if(FSTAT_ACCERR)
+					FSTAT_ACCERR=1;
+				if(FSTAT_FPVIOL)
+					FSTAT_FPVIOL=1;
+				FCCOBIX_CCOBIX=0x00;
+				FCCOB=(0x06<<8)+(address>>16);	/* Program P-Flash */
+				FCCOBIX_CCOBIX=0x01;
+				FCCOB=address&0xFFFF;
+				FCCOBIX_CCOBIX=0x02;
+				FCCOB=((uint16_t*)data)[0];
+				FCCOBIX_CCOBIX=0x03;
+				FCCOB=((uint16_t*)data)[1];
+				FCCOBIX_CCOBIX=0x04;
+				FCCOB=((uint16_t*)data)[2];
+				FCCOBIX_CCOBIX=0x05;
+				FCCOB=((uint16_t*)data)[3];
+
+				FSTAT_CCIF=1;
+				while(FSTAT_CCIF==0);
+
+				data += 2;
+				address += 8;
+				length -= 8;
+			}
+		}
+	}
+	else
+	{
+		FlashParam->errorcode = kFlashFailed;
+	}
+}
+
+void FlashRead(tFlashParam* FlashParam)
+{
+	tAddress address;
+	tLength  length;
+	tData*    data;
+	if ( (FLASH_DRIVER_VERSION_PATCH == FlashParam->patchlevel) ||
+		 (FLASH_DRIVER_VERSION_MINOR == FlashParam->minornumber) ||
+		 (FLASH_DRIVER_VERSION_MAJOR == FlashParam->majornumber) )
+	{
+		length = FlashParam->length;
+		address = FlashParam->address;
+		data = FlashParam->data;
+		if ( (FALSE == FLASH_IS_READ_ADDRESS_ALIGNED(address)) ||
+			 (FALSE == IS_FLASH_ADDRESS(address)) )
+		{
+			FlashParam->errorcode = kFlashInvalidAddress;
+		}
+		else if( (FALSE == IS_FLASH_ADDRESS(address+length)) ||
+				 (FALSE == FLASH_IS_READ_ADDRESS_ALIGNED(length)) )
+		{
+			FlashParam->errorcode = kFlashInvalidSize;
+		}
+		else if( NULL == data )
+		{
+			FlashParam->errorcode = kFlashInvalidData;
+		}
+		else
+		{
+			tLength i;
+			uint8_t savedPPAGE = PPAGE;
+			char* dst = (char*) data;
+			const char* src = (const char*) address;
+
+			PPAGE = address>>16;
+			for(i=0;i<length;i++)
+			{
+				dst[i] = src[i];
+			}
+
+			PPAGE = savedPPAGE;
+			FlashParam->errorcode = kFlashOk;
+		}
+	}
+	else
+	{
+		FlashParam->errorcode = kFlashFailed;
+	}
+}

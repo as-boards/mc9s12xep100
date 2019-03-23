@@ -468,3 +468,8 @@ __EXTERN_C void _Startup(void) {
    /* call main() */
    main();
 }
+
+void main(void)
+{
+	while(1);
+}
