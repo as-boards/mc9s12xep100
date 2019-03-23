@@ -18,15 +18,21 @@
 #include "miniblt.h"
 #include "Mcu.h"
 #include "Can.h"
+#include "Os.h"
+#ifdef USE_SHELL
+#include "shell.h"
+#endif
 /* ============================ [ MACROS    ] ====================================================== */
+#define LEDCPU     PORTK_PK4
+#define LEDCPU_dir DDRK_DDRK4
 /* ============================ [ TYPES     ] ====================================================== */
 /* ============================ [ DECLARES  ] ====================================================== */
 extern void OsTick(void);
+extern TickType OsTickCounter;
 /* ============================ [ DATAS     ] ====================================================== */
 char FlashDriverRam[4096];
 /* ============================ [ LOCALS    ] ====================================================== */
 const Mcu_ConfigType const McuConfigData[1];
-const Can_ConfigType Can_ControllerCfgData;
 /* ============================ [ FUNCTIONS ] ====================================================== */
 
 void StartOsTick(void)
@@ -39,12 +45,25 @@ void StartOsTick(void)
 
 void BL_HwInit(void)
 {
-
+	LEDCPU_dir=1;
 }
 
 void BL_HwMonitor(void)
 {
-
+	static TickType timer = 0;
+	if((OsTickCounter-timer) >= 125)
+	{
+		LEDCPU=~LEDCPU;
+		timer = OsTickCounter;
+	}
+	#ifdef USE_SHELL
+	if(SCI0SR1_RDRF)
+	{
+		char ch = SCI0DRL;
+		if('\r' == ch) ch = '\n';
+		SHELL_input(ch);
+	}
+	#endif
 }
 
 void application_main(void)
@@ -54,9 +73,14 @@ void application_main(void)
 
 
 #pragma CODE_SEG __NEAR_SEG NON_BANKED
-interrupt 7 void Isr_SystemTick(void)
+interrupt VectorNumber_Vrti void Isr_SystemTick(void)
 {
 	CRGFLG &=0xEF;			// clear the interrupt flag
 	OsTick();
 }
+
+interrupt VectorNumber_Vcan0rx  void Can_0_RxIsr_Entry( void  ) {	Can_0_RxIsr(); }
+interrupt VectorNumber_Vcan0tx  void Can_0_TxIsr_Entry( void  ) {	Can_0_TxIsr(); }
+interrupt VectorNumber_Vcan0err void Can_0_ErrIsr_Entry( void  ) {	Can_0_ErrIsr(); }
+interrupt VectorNumber_Vcan0wkup void Can_0_WakeIsr_Entry( void  ) {	Can_0_WakeIsr(); }
 #pragma CODE_SEG DEFAULT

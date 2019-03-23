@@ -5,7 +5,21 @@ cwd = GetCurrentDir()
 Import('asenv')
 ASROOT = asenv['ASROOT']
 
+def IsNeedBuild(obj):
+    if(GetOption('force')):
+        return True
+    robj = 'build/any/%s.o'%(os.path.basename(obj)[:-2])
+    if(os.path.exists(robj)):
+        rtm = os.path.getmtime(robj)
+        stm = os.path.getmtime(obj)
+        if(stm < rtm):
+            return False
+    return True
+
 def Program9S12(target, objs, env):
+    if(GetOption('clean')):
+        RunCommand('rm -fv build/any/*.o')
+        exit()
     cw = os.getenv('CWCC_PATH')
     if(cw is None):
         cw = 'C:/Program Files (x86)/Freescale/CodeWarrior for S12(X) V5.0'
@@ -14,12 +28,12 @@ def Program9S12(target, objs, env):
         exit()
     HIWAVE ='"%s/Prog/hiwave.exe" '%(cw)
     if('run' in COMMAND_LINE_TARGETS):
-        cmd = HIWAVE+'-W -Prod=TBDML.ini -instance=tbdml any.abs -CMD="Go"'
+        cmd = HIWAVE+'-W -Prod=TBDML.ini -instance=tbdml '+os.path.abspath('any.abs')+' -CMD="Go"'
         if('sim' in COMMAND_LINE_TARGETS):
-            cmd = HIWAVE+'-W -Prod=Full_Chip_Simulation.ini -instance=sim any.abs'
+            cmd = HIWAVE+'-W -Prod=Full_Chip_Simulation.ini -instance=sim '+os.path.abspath('any.abs')
         print('cmd is:', cmd)
         with open('run9s12.bat','w') as fp:
-            fp.write('@echo off\n%s\n'%(cmd))
+            fp.write('@echo off\ncd %s/Project\n%s\n'%(cwd,cmd))
         if(0 != os.system('run9s12')):
             print('run of %s failed\n  %s\n'%(target, cmd))
         exit()
@@ -35,7 +49,7 @@ def Program9S12(target, objs, env):
         fp.write('C_FLAGS   = -I"%s/lib/hc12c/include" -Mb -CpuHCS12X\n'%(cw))
         fp.write('ASM_FLAGS = -I"%s/lib/hc12c/include" -Mb -CpuHCS12X\n'%(cw))
         fp.write('LD_FLAGS  = -M -WmsgNu=abcet\n')
-        fp.write('LIBS = "%s/lib/hc12c/lib/ansibi.lib"\n'%(cw))
+        fp.write('LIBS = "%s/lib/hc12c/lib/ansixbi.lib"\n'%(cw))
         fp.write('INC = ')
         for p in env['CPPPATH']:
             fp.write('-I%s '%(p))
@@ -48,7 +62,8 @@ def Program9S12(target, objs, env):
         for obj in objs:
             obj = str(obj)
             if(obj.endswith('.c') or obj.endswith('.C')):
-                fp.write(obj[:-2]+'.o ')
+                if(IsNeedBuild(obj)):
+                    fp.write(obj[:-2]+'.o ')
         fp.write('\n\nOBJS_LINK = ')
         for obj in objs:
             obj = str(obj)
@@ -65,7 +80,7 @@ all:$(OBJS) {0}.abs
     echo "done all"
 
 {0}.abs :
-    $(LD) {1} $(COMMON_FLAGS) $(LD_FLAGS) -Add($(LIBS)) -Add($(OBJS_LINK)) -M -O$*.abs'''.format(
+    $(LD) {1} $(COMMON_FLAGS) $(LD_FLAGS) -Add($(OBJS_LINK)) -Add($(LIBS)) -M -O$*.abs'''.format(
         target, env['LINK_SCRIPTS'])
     )
     cmd = '%s .makefile.9s12'%(MAKE)
@@ -95,9 +110,11 @@ if(asenv['RELEASE']=='asboot'):
                'ANYOS',
                'MINIBLT',
                'CANTP_MINI','DCM_MINI',
+               'CLIB_STDIO_PRINTF',
+               'SHELL','RINGBUFFER','CLIB_STRTOK_R',
                'MPC9S12XEP100'
            ]
-    asenv.Append(CPPDEFINES=['CMDLINE_MAX=4096','FLASH_CMD_MAX_DATA=2000'])
+    asenv.Append(CPPDEFINES=['CMDLINE_MAX=256','FLASH_CMD_MAX_DATA=512'])
 
 ARCH='none'
 arch='9s12x'
@@ -119,7 +136,8 @@ else:
     objs += Glob('Project/Sources/*.c')
     asenv.Append(CPPPATH=['%s/Project/Sources'%(cwd)])
 asenv.Append(CPPPATH=['%s/../../board.posix/common'%(cwd)])
-asenv.Append(CPPDEFINES=['IS_ARCH16','NOT_PYGEN_CAN',
+asenv.Append(CPPDEFINES=['IS_ARCH16',
+                         '_G_va_list=va_list',
                          'DCM_DEFAULT_RXBUF_SIZE=512',
                          'DCM_DEFAULT_TXBUF_SIZE=512'])
 
@@ -128,5 +146,8 @@ if('MCU' in MODULES):
 
 if('CAN' in MODULES):
     objs += Glob('mcal/Can.c')
+
+if('SHELL' in MODULES):
+    asenv.Append(CPPDEFINES=['USE_SHELL_WITHOUT_TASK','ENABLE_SHELL_ECHO_BACK'])
 
 Return('objs')

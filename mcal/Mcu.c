@@ -18,6 +18,9 @@
 #include "derivative.h"
 /* ============================ [ MACROS    ] ====================================================== */
 #define CPU_FREQUENCY 32000000
+#ifdef USE_CLIB_STDIO_PRINTF
+#define TERMIO_PutChar __putchar
+#endif
 /* ============================ [ TYPES     ] ====================================================== */
 /* ============================ [ DECLARES  ] ====================================================== */
 /* ============================ [ DATAS     ] ====================================================== */
@@ -57,7 +60,7 @@ void Mcu_SetMode( Mcu_ModeType McuMode )
 
 uint32_t McuE_GetSystemClock(void)
 {
-  return CPU_FREQUENCY;
+	return (uint32_t)CPU_FREQUENCY;
 }
 
 Std_ReturnType Mcu_InitClock( const Mcu_ClockType ClockSetting )
@@ -95,11 +98,11 @@ Mcu_ResetType Mcu_GetResetReason( void )
 
 void Mcu_DistributePllClock( void )
 {
-	CLKSEL |= 0x80;        //set PLLCLK as sysclk
+	CLKSEL |= 0x80; /* set PLLCLK as sysclk */
 	/* Init UART for debug */
 	SCI0BD = CPU_FREQUENCY/16/115200;
 	SCI0CR1 = 0x00;
-	SCI0CR2 = 0x08;
+	SCI0CR2 = 0x0C;	/* enable RX and TX, no interrupt */
 }
 
 
