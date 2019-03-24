@@ -16,6 +16,7 @@
 #include "Mcu.h"
 #include <hidef.h>
 #include "derivative.h"
+#include "Os.h"
 /* ============================ [ MACROS    ] ====================================================== */
 #define CPU_FREQUENCY 32000000
 #ifdef USE_CLIB_STDIO_PRINTF
@@ -23,7 +24,13 @@
 #endif
 /* ============================ [ TYPES     ] ====================================================== */
 /* ============================ [ DECLARES  ] ====================================================== */
+extern void OsTick(void);
+
+#if !defined(USE_MINIBLT)
+extern const FP tisr_pc[];
+#endif
 /* ============================ [ DATAS     ] ====================================================== */
+const Mcu_ConfigType const McuConfigData[1];
 /* ============================ [ LOCALS    ] ====================================================== */
 /* ============================ [ FUNCTIONS ] ====================================================== */
 void TERMIO_PutChar(char c)
@@ -35,6 +42,9 @@ void TERMIO_PutChar(char c)
 void Mcu_Init(const Mcu_ConfigType *configPtr)
 {
 	(void*)configPtr;
+#if !defined(USE_MINIBLT)
+	IVBR = ((uint16)tisr_pc)>>8;
+#endif
 	CLKSEL &= 0x7f;       //set OSCCLK as sysclk
 	PLLCTL &= 0x8F;       //Disable PLL circuit
 	CRGINT &= 0xDF;
@@ -103,6 +113,8 @@ void Mcu_DistributePllClock( void )
 	SCI0BD = CPU_FREQUENCY/16/115200;
 	SCI0CR1 = 0x00;
 	SCI0CR2 = 0x0C;	/* enable RX and TX, no interrupt */
+
+	printf("IVBR: %X\n",(uint32)IVBR);
 }
 
 
@@ -133,3 +145,65 @@ void Irq_Disable(void)
 {
 	asm sei;
 }
+
+/*
+#python code to search the best for the given expect period
+OSCLK = 16*1000000
+expect = 1/100
+diff = OSCLK
+best = None
+# RTDEC = 0
+for rtr30 in range(16):
+  for rtr64 in range(8):
+    period = (rtr30+1)*2**(rtr64+9)/OSCLK
+    ndiff = abs(period-expect)
+    if(ndiff < diff):
+      diff = ndiff
+      best = (0, rtr64, rtr30, period, diff)
+# RTDEC = 1
+TABLE = [1,2,5,10,20,50,100,200]
+for rtr30 in range(16):
+  for rtr64 in range(8):
+    period = (rtr30+1)*TABLE[rtr64]*1000/OSCLK
+    ndiff = abs(period-expect)
+    if(ndiff < diff):
+      diff = ndiff
+      best = (1, rtr64, rtr30, period, diff)
+print('best is', hex((best[0]<<7)+(best[1]<<4)+best[2]))
+ */
+void StartOsTick(void)
+{
+#if OS_TICKS_PER_SECOND == 100
+	RTICTL = 0xc7;       /* period is 10ms */
+#else
+#error wrong configuration of OS_TICKS_PER_SECOND
+#endif
+	CRGINT_RTIE=1;       /* enable real-time interrupt */
+}
+
+#pragma CODE_SEG __NEAR_SEG NON_BANKED
+#if defined(USE_MINIBLT)
+#define ISRNO_VRTI      VectorNumber_Vrti
+#define ISRNO_VCAN0RX   VectorNumber_Vcan0rx
+#define ISRNO_VCAN0TX   VectorNumber_Vcan0tx
+#define ISRNO_VCAN0ERR  VectorNumber_Vcan0err
+#define ISRNO_VCAN0WKUP VectorNumber_Vcan0wkup
+#else
+#define ISRNO_VRTI
+#define ISRNO_VCAN0RX
+#define ISRNO_VCAN0TX
+#define ISRNO_VCAN0ERR
+#define ISRNO_VCAN0WKUP
+#endif
+interrupt ISRNO_VRTI void Isr_SystemTick(void)
+{
+	CRGFLG &=0xEF;			// clear the interrupt flag
+	OsTick();
+}
+#ifdef USE_CAN
+interrupt ISRNO_VCAN0RX  void Can_0_RxIsr_Entry( void  ) {	Can_0_RxIsr(); }
+interrupt ISRNO_VCAN0TX  void Can_0_TxIsr_Entry( void  ) {	Can_0_TxIsr(); }
+interrupt ISRNO_VCAN0ERR void Can_0_ErrIsr_Entry( void  ) {	Can_0_ErrIsr(); }
+interrupt ISRNO_VCAN0WKUP void Can_0_WakeIsr_Entry( void  ) {	Can_0_WakeIsr(); }
+#endif
+#pragma CODE_SEG DEFAULT

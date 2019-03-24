@@ -22,6 +22,8 @@
 #ifdef USE_SHELL
 #include "shell.h"
 #endif
+
+#include "Flash.h"
 /* ============================ [ MACROS    ] ====================================================== */
 #define LEDCPU     PORTK_PK4
 #define LEDCPU_dir DDRK_DDRK4
@@ -29,46 +31,13 @@
 #define OSCCLK 16000000
 /* ============================ [ TYPES     ] ====================================================== */
 /* ============================ [ DECLARES  ] ====================================================== */
-extern void OsTick(void);
 extern TickType OsTickCounter;
 /* ============================ [ DATAS     ] ====================================================== */
 #pragma DATA_SEG __NEAR_SEG FLASH_RAM
-char FlashDriverRam[512] @ 0x3900;
+tFlashHeader FlashDriverRam @ 0x3900;
 #pragma DATA_SEG DEFAULT
 /* ============================ [ LOCALS    ] ====================================================== */
-const Mcu_ConfigType const McuConfigData[1];
 /* ============================ [ FUNCTIONS ] ====================================================== */
-/*
-#python code to search the best for the given expect period
-OSCLK = 16*1000000
-expect = 1/100
-diff = OSCLK
-best = None
-# RTDEC = 0
-for rtr30 in range(16):
-  for rtr64 in range(8):
-    period = (rtr30+1)*2**(rtr64+9)/OSCLK
-    ndiff = abs(period-expect)
-    if(ndiff < diff):
-      diff = ndiff
-      best = (0, rtr64, rtr30, period, diff)
-# RTDEC = 1
-TABLE = [1,2,5,10,20,50,100,200]
-for rtr30 in range(16):
-  for rtr64 in range(8):
-    period = (rtr30+1)*TABLE[rtr64]*1000/OSCLK
-    ndiff = abs(period-expect)
-    if(ndiff < diff):
-      diff = ndiff
-      best = (1, rtr64, rtr30, period, diff)
-print('best is', hex((best[0]<<7)+(best[1]<<4)+best[2]))
- */
-void StartOsTick(void)
-{
-	RTICTL = 0xc7;       /* period is 10ms */
-	CRGINT_RTIE=1;       /* enable real-time interrupt */
-}
-
 void BL_HwInit(void)
 {
 	LEDCPU_dir=1;
@@ -96,17 +65,3 @@ void application_main(void)
 {
 
 }
-
-
-#pragma CODE_SEG __NEAR_SEG NON_BANKED
-interrupt VectorNumber_Vrti void Isr_SystemTick(void)
-{
-	CRGFLG &=0xEF;			// clear the interrupt flag
-	OsTick();
-}
-
-interrupt VectorNumber_Vcan0rx  void Can_0_RxIsr_Entry( void  ) {	Can_0_RxIsr(); }
-interrupt VectorNumber_Vcan0tx  void Can_0_TxIsr_Entry( void  ) {	Can_0_TxIsr(); }
-interrupt VectorNumber_Vcan0err void Can_0_ErrIsr_Entry( void  ) {	Can_0_ErrIsr(); }
-interrupt VectorNumber_Vcan0wkup void Can_0_WakeIsr_Entry( void  ) {	Can_0_WakeIsr(); }
-#pragma CODE_SEG DEFAULT

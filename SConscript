@@ -32,9 +32,9 @@ def Program9S12(target, objs, env):
         if('sim' in COMMAND_LINE_TARGETS):
             cmd = HIWAVE+'-W -Prod=Full_Chip_Simulation.ini -instance=sim '+os.path.abspath('any.abs')
         print('cmd is:', cmd)
-        with open('build/%s/run9s12.bat'%(target),'w') as fp:
+        with open('run9s12.bat','w') as fp:
             fp.write('@echo off\ncd %s/Project\n%s\n'%(cwd,cmd))
-        if(0 != os.system('build/%s/run9s12'%(target))):
+        if(0 != os.system('run9s12')):
             print('run of %s failed\n  %s\n'%(target, cmd))
         exit()
     CC   = cw + '/Prog/chc12.exe'
@@ -92,20 +92,22 @@ all:$(OBJS) {0}.abs
 
 asenv['Program'] = Program9S12
 
-MODULES = ['ECUM','SCHM','MCU',
-           'DET','DEM',
-           'ASKAR','SHELL','CLIB_STRTOK_R',
-           'PORT','DIO','ADC',
-           'CAN','CANIF','PDUR','COM','COMM','CANTP',
-           'DCM','CANNM','CANSM','NM','OSEKNM','XCP',
-           'FLS','FEE','MEMIF','NVM','CLIB_MBOX',
+MODULES = ['DET',
+           'CAN','CANIF','PDUR','CANTP','DCM',
+           'MCU',
+           'ECUM','SCHM',
+           'TINYOS',
+           'CANTP_MINI','DCM_MINI',
+           'CLIB_STDIO_PRINTF',
+           'SHELL','RINGBUFFER','CLIB_STRTOK_R',
            'MPC9S12XEP100'
            ]
+
 asenv['LINK_SCRIPTS'] = '%s/Project/prm/Project.prm'%(cwd)
 
 # post special process for asboot release
 if(asenv['RELEASE']=='asboot'):
-    MODULES = ['MCU','DET',
+    MODULES = ['DET',
                'CAN','CANTP','DCM',
                'FLASH','MCU',
                'ANYOS',
@@ -113,6 +115,7 @@ if(asenv['RELEASE']=='asboot'):
                'CANTP_MINI','DCM_MINI',
                'CLIB_STDIO_PRINTF',
                'SHELL','RINGBUFFER','CLIB_STRTOK_R',
+               'MEM_CMD','JMP_CMD',
                'MPC9S12XEP100'
            ]
     asenv['LINK_SCRIPTS'] = '%s/miniblt/prm/Project.prm'%(cwd)
@@ -145,21 +148,26 @@ else:
 asenv.Append(CPPPATH=['%s/../../board.posix/common'%(cwd)])
 asenv.Append(CPPDEFINES=['IS_ARCH16',
                          '_G_va_list=va_list',
-                         'OS_TICKS_PER_SECOND=244',
+                         'OS_TICKS_PER_SECOND=100',
                          'DCM_DEFAULT_RXBUF_SIZE=512',
                          'DCM_DEFAULT_TXBUF_SIZE=512'])
 
 if('MCU' in MODULES):
     objs += Glob('mcal/Mcu.c')
+    objs += Glob('mcal/isr_os.xml')
 
 if('CAN' in MODULES):
     objs += Glob('mcal/Can.c')
+    objs += Glob('mcal/isr_can.xml')
+
+if('CANIF' in MODULES):
+    asenv.Append(CPPDEFINES=['CANIF_TASK_FIFO_MODE=STD_OFF'])
 
 if('SHELL' in MODULES):
     asenv.Append(CPPDEFINES=['USE_SHELL_WITHOUT_TASK','ENABLE_SHELL_ECHO_BACK'])
     asenv.Append(CPPDEFINES=['CMDLINE_MAX=64','FLASH_CMD_MAX_DATA=64'])
 
 if('FLASH' in MODULES):
-    asenv.Append(CPPDEFINES=['FLASH_DRIVER_STARTADDRESS=0x3900'])
+    asenv.Append(CPPDEFINES=['FLASH_DRIVER_STARTADDRESS=0x3900','FLASH_ERASE_SIZE=1024','FLASH_WRITE_SIZE=8'])
 
 Return('objs')

@@ -32,8 +32,9 @@
 #endif
 
 #define IS_FLASH_ADDRESS(a) (									\
-		(((a) < 0xC000) && ((a) >= 0x8000)) ||					\
-		( (((a)>>16) < 0xFD) && (((a)>>16) >= 0xC0) &&			\
+		(((a) <= 0x8000) && ((a) >= 0x4000)) ||					\
+		(((a) <= 0xE000) && ((a) >= 0xC000)) ||					\
+		( (((a)>>16) < 0xFC) && (((a)>>16) >= 0xC0) &&			\
 		  (((a)&0xFFFF) < 0xC000) && (((a)&0xFFFF) >= 0x8000) ) \
 		)
 
@@ -61,7 +62,7 @@ void FlashInit(tFlashParam* FlashParam)
 		 (FLASH_DRIVER_VERSION_MAJOR == FlashParam->majornumber) )
 	{
 		while(FSTAT_CCIF==0);
-		FCLKDIV=0x0F;
+		FCLKDIV=0x0F;	/* set FCLK to 1MHZ OSCCLK/16 */
 		FCNFG=0x00;
 		while(FCLKDIV_FDIVLD==0);
 		FlashParam->errorcode = kFlashOk;
@@ -118,8 +119,16 @@ void FlashErase(tFlashParam* FlashParam)
 				FSTAT_CCIF=1;
 				while(FSTAT_CCIF==0);
 
-				address += 1024;
-				length  -= 1024;
+				if(FSTAT_ACCERR || FSTAT_FPVIOL)
+				{
+					FlashParam->errorcode = FSTAT_ACCERR?kFlashAccerr:kFlashPViol;
+					FlashParam->errorAddress = address;
+				}
+				else
+				{
+					address += 1024;
+					length  -= 1024;
+				}
 			}
 		}
 	}
@@ -182,9 +191,17 @@ void FlashWrite(tFlashParam* FlashParam)
 				FSTAT_CCIF=1;
 				while(FSTAT_CCIF==0);
 
-				data += 2;
-				address += 8;
-				length -= 8;
+				if(FSTAT_ACCERR || FSTAT_FPVIOL)
+				{
+					FlashParam->errorcode = FSTAT_ACCERR?kFlashAccerr:kFlashPViol;
+					FlashParam->errorAddress = address;
+				}
+				else
+				{
+					data += 2;
+					address += 8;
+					length -= 8;
+				}
 			}
 		}
 	}

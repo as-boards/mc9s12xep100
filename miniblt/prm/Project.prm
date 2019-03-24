@@ -84,6 +84,7 @@ SEGMENTS /* here all RAM/ROM areas of the device are listed. Used in PLACEMENT b
 /*    RAM_FF        = READ_WRITE                     0xFF1000 TO 0xFF1FFF; intentionally not defined: equivalent to RAM: 0x3000..0x3FFF */
 
 /* paged FLASH:                                        0x8000 TO   0xBFFF; addressed through PPAGE */
+      PAGE_FC       = READ_ONLY   DATA_FAR IBCC_FAR  0xFC8000 TO 0xFCBFFF;
 /*    PAGE_FD       = READ_ONLY                      0xFD8000 TO 0xFDBFFF; intentionally not defined: equivalent to ROM_4000 */
       PAGE_FE       = READ_ONLY   DATA_FAR IBCC_FAR  0xFE8000 TO 0xFEBFFF; 
 /*    PAGE_FF       = READ_ONLY                      0xFF8000 TO 0xFFBFFF; intentionally not defined: equivalent to ROM_E000 */
@@ -103,7 +104,7 @@ PLACEMENT /* here all predefined and user segments are placed into the SEGMENTS 
                                  option: -OnB=b */
                         INTO  ROM_E000;
 
-      DEFAULT_ROM       INTO           PAGE_FE;
+      DEFAULT_ROM       INTO           PAGE_FE, PAGE_FC;
 
     //.stackstart,            /* eventually used for OSEK kernel awareness: Main-Stack Start */
       SSTACK,                 /* allocate stack first to avoid overwriting variables on overflow */
@@ -117,9 +118,9 @@ PLACEMENT /* here all predefined and user segments are placed into the SEGMENTS 
                               RAM_F8, RAM_F9, RAM_FA, RAM_FB, RAM_FC, RAM_FD;
 
       DISTRIBUTE        DISTRIBUTE_INTO
-                              PAGE_FE;
+                              PAGE_FE, PAGE_FC;
       CONST_DISTRIBUTE  DISTRIBUTE_INTO
-                              PAGE_FE;
+                              PAGE_FE, PAGE_FC;
       DATA_DISTRIBUTE   DISTRIBUTE_INTO
                               RAM, RAM_FD, RAM_FC, RAM_FB, RAM_FA, RAM_F9, RAM_F8, RAM_F7, 
                               RAM_F6, RAM_F5, RAM_F4, RAM_F3, RAM_F2, RAM_F1, RAM_F0;
