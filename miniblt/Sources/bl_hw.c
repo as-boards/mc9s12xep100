@@ -29,7 +29,14 @@
 #define LEDCPU_dir DDRK_DDRK4
 
 #define OSCCLK 16000000
+
+#define APP_TAG_ADDR 0xC000
 /* ============================ [ TYPES     ] ====================================================== */
+typedef struct {
+	uint16 tag;   /* 2 bytes */
+	FP     entry; /* 3 bytes */
+	uint8  reserved;
+} AppTag_Type;
 /* ============================ [ DECLARES  ] ====================================================== */
 extern TickType OsTickCounter;
 /* ============================ [ DATAS     ] ====================================================== */
@@ -51,17 +58,18 @@ void BL_HwMonitor(void)
 		LEDCPU=~LEDCPU;
 		timer = OsTickCounter;
 	}
-	#ifdef USE_SHELL
-	if(SCI0SR1_RDRF)
-	{
-		char ch = SCI0DRL;
-		if('\r' == ch) ch = '\n';
-		SHELL_input(ch);
-	}
-	#endif
 }
 
 void application_main(void)
 {
+	AppTag_Type *appTag = (AppTag_Type*)APP_TAG_ADDR;
 
+	if( (0xA55A == appTag->tag) &&
+		(0x5A == appTag->reserved) &&
+		(NULL != appTag->entry))
+	{
+		printf("jmp %X\n", (uint32)appTag->entry);
+		CRGINT_RTIE = 0;	/* stop os tick ISR */
+		appTag->entry();
+	}
 }

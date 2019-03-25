@@ -23,14 +23,26 @@
 #define TERMIO_PutChar __putchar
 #endif
 /* ============================ [ TYPES     ] ====================================================== */
+typedef struct {
+	uint16 tag;   /* 2 bytes */
+	FP     entry; /* 3 bytes */
+	uint8  reserved;
+} AppTag_Type;
 /* ============================ [ DECLARES  ] ====================================================== */
 extern void OsTick(void);
 
 #if !defined(USE_MINIBLT)
 extern const FP tisr_pc[];
 #endif
+
+extern void _Startup(void);
 /* ============================ [ DATAS     ] ====================================================== */
 const Mcu_ConfigType const McuConfigData[1];
+#if !defined(__AS_BOOTLOADER__)
+#pragma DATA_SEG __NEAR_SEG APP_TAG
+const AppTag_Type app_tag = { 0xA55A, _Startup, 0x5A };
+#pragma DATA_SEG __NEAR_SEG DEFAULT
+#endif
 /* ============================ [ LOCALS    ] ====================================================== */
 /* ============================ [ FUNCTIONS ] ====================================================== */
 void TERMIO_PutChar(char c)
@@ -42,7 +54,14 @@ void TERMIO_PutChar(char c)
 void Mcu_Init(const Mcu_ConfigType *configPtr)
 {
 	(void*)configPtr;
-#if !defined(USE_MINIBLT)
+
+#if !defined(__AS_BOOTLOADER__)
+	{
+		volatile uint16 tag;
+		tag = app_tag.tag; /* access to keep the app tag */
+	}
+#endif
+#if !defined(__AS_BOOTLOADER__)
 	IVBR = ((uint16)tisr_pc)>>8;
 #endif
 	CLKSEL &= 0x7f;       //set OSCCLK as sysclk
@@ -81,7 +100,8 @@ Std_ReturnType Mcu_InitClock( const Mcu_ClockType ClockSetting )
 
 void Mcu_PerformReset( void )
 {
-
+	COPCTL = 0x41;			/* enable the COP */
+	while(1);
 }
 
 Mcu_PllStatusType Mcu_GetPllStatus( void )
@@ -117,6 +137,18 @@ void Mcu_DistributePllClock( void )
 	printf("IVBR: %X\n",(uint32)IVBR);
 }
 
+
+void TaskIdleHook(void)
+{
+	#ifdef USE_SHELL
+	if(SCI0SR1_RDRF)
+	{
+		char ch = SCI0DRL;
+		if('\r' == ch) ch = '\n';
+		SHELL_input(ch);
+	}
+	#endif
+}
 
 imask_t __Irq_Save(void)
 {
@@ -182,7 +214,7 @@ void StartOsTick(void)
 }
 
 #pragma CODE_SEG __NEAR_SEG NON_BANKED
-#if defined(USE_MINIBLT)
+#if defined(__AS_BOOTLOADER__)
 #define ISRNO_VRTI      VectorNumber_Vrti
 #define ISRNO_VCAN0RX   VectorNumber_Vcan0rx
 #define ISRNO_VCAN0TX   VectorNumber_Vcan0tx

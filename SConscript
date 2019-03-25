@@ -78,7 +78,7 @@ def Program9S12(target, objs, env):
     $(CC) $*.c $(INC) $(COMMON_FLAGS) $(C_FLAGS)
 
 all:$(OBJS) {0}.abs
-    {2} OPENFILE "{0}.s19" format=motorola busWidth=1 origin=0 len=0x10000 destination=0 SRECORD=Sx SENDBYTE 1 "{0}.abs" CLOSE
+    {2} OPENFILE "{0}.s19" format=motorola busWidth=1 origin=0 len=0x80000000 destination=0 SRECORD=Sx SENDBYTE 1 "{0}.abs" CLOSE
 
 {0}.abs :
     $(LD) {1} $(COMMON_FLAGS) $(LD_FLAGS) -Add($(OBJS_LINK)) -Add($(LIBS)) -M -O$*.abs'''.format(

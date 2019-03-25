@@ -154,6 +154,7 @@ SEGMENTS /* here all RAM/ROM areas of the device are listed. Used in PLACEMENT b
 END
 
 PLACEMENT /* here all predefined and user segments are placed into the SEGMENTS defined above. */
+      APP_TAG,
       _PRESTART,              /* Used in HIWARE format: jump to _Startup at the code start */
       STARTUP,                /* startup data structures */
       ROM_VAR,                /* constant variables */

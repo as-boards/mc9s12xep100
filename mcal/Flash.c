@@ -34,13 +34,14 @@
 #define IS_FLASH_ADDRESS(a) (									\
 		(((a) <= 0x8000) && ((a) >= 0x4000)) ||					\
 		(((a) <= 0xE000) && ((a) >= 0xC000)) ||					\
-		( (((a)>>16) < 0xFC) && (((a)>>16) >= 0xC0) &&			\
-		  (((a)&0xFFFF) < 0xC000) && (((a)&0xFFFF) >= 0x8000) ) \
+		( (((a)>>16) <= 0xFC) && (((a)>>16) >= 0xC0) &&			\
+		  (((a)&0xFFFF) <= 0xC000) && (((a)&0xFFFF) >= 0x8000) ) \
 		)
 
 #define AS_LOG_FLS 0
 
 #define FlashHeader _Startup
+
 /* ============================ [ TYPES     ] ====================================================== */
 /* ============================ [ DECLARES  ] ====================================================== */
 /* ============================ [ DATAS     ] ====================================================== */
@@ -82,10 +83,8 @@ void FlashDeinit(tFlashParam* FlashParam)
 void FlashErase(tFlashParam* FlashParam)
 {
 	tAddress address;
+	tAddress globalAddress;
 	tLength  length;
-	uint32 num;
-	uint32 tmp;
-	volatile struct FLASH_tag * hw;
 	if ( (FLASH_DRIVER_VERSION_PATCH == FlashParam->patchlevel) ||
 		 (FLASH_DRIVER_VERSION_MINOR == FlashParam->minornumber) ||
 		 (FLASH_DRIVER_VERSION_MAJOR == FlashParam->majornumber) )
@@ -106,6 +105,15 @@ void FlashErase(tFlashParam* FlashParam)
 		{
 			while((length > 0) && (kFlashOk == FlashParam->errorcode))
 			{
+				if(address&0xFF0000)
+				{
+					globalAddress = (address>>16)*16*1024+0x400000+(address&0x3FFF);
+				}
+				else
+				{
+					globalAddress = 0x7F0000+address;
+				}
+
 				while(FSTAT_CCIF==0);
 				if(FSTAT_ACCERR)
 					FSTAT_ACCERR=1;
@@ -113,9 +121,9 @@ void FlashErase(tFlashParam* FlashParam)
 					FSTAT_FPVIOL=1;
 
 				FCCOBIX_CCOBIX=0x00;
-				FCCOB=(0x0A<<8)+(address>>16);	/* Erase P-Flash Sector */
+				FCCOB=(0x0A<<8)+(globalAddress>>16);	/* Erase P-Flash Sector */
 				FCCOBIX_CCOBIX=0x01;
-				FCCOB=address&0xFFFF;
+				FCCOB=globalAddress&0xFFFF;
 				FSTAT_CCIF=1;
 				while(FSTAT_CCIF==0);
 
@@ -126,8 +134,24 @@ void FlashErase(tFlashParam* FlashParam)
 				}
 				else
 				{
+					uint8 savedPage = PPAGE;
+					tAddress   addr;
+
+					PPAGE = (address>>16)&0xFF;
+					for(addr = address; addr < (address+1024); addr+=4)
+					{
+						uint16 addrInWindow = addr&0xFFFF;
+						if((*(volatile uint32*)addrInWindow) != 0xFFFFFFFF)
+						{
+							FlashParam->errorcode = kFlashFailed;
+							break;
+						}
+					}
+					PPAGE = savedPage;
+
 					address += 1024;
 					length  -= 1024;
+
 				}
 			}
 		}
@@ -141,10 +165,9 @@ void FlashErase(tFlashParam* FlashParam)
 void FlashWrite(tFlashParam* FlashParam)
 {
 	tAddress address;
+	tAddress globalAddress;
 	tLength  length;
 	tData*    data;
-	uint32 tmp;
-	volatile struct FLASH_tag * hw;
 	if ( (FLASH_DRIVER_VERSION_PATCH == FlashParam->patchlevel) ||
 		 (FLASH_DRIVER_VERSION_MINOR == FlashParam->minornumber) ||
 		 (FLASH_DRIVER_VERSION_MAJOR == FlashParam->majornumber) )
@@ -170,15 +193,24 @@ void FlashWrite(tFlashParam* FlashParam)
 		{
 			while((length > 0) && (kFlashOk == FlashParam->errorcode))
 			{
+				if(0 != (address&0xFF0000))
+				{
+					globalAddress = (address>>16)*16*1024+0x400000+(address&0x3FFF);
+				}
+				else
+				{
+					globalAddress = 0x7F0000+address;
+				}
+
 				while(FSTAT_CCIF==0);
 				if(FSTAT_ACCERR)
 					FSTAT_ACCERR=1;
 				if(FSTAT_FPVIOL)
 					FSTAT_FPVIOL=1;
 				FCCOBIX_CCOBIX=0x00;
-				FCCOB=(0x06<<8)+(address>>16);	/* Program P-Flash */
+				FCCOB=(0x06<<8)+(globalAddress>>16);	/* Program P-Flash */
 				FCCOBIX_CCOBIX=0x01;
-				FCCOB=address&0xFFFF;
+				FCCOB=globalAddress&0xFFFF;
 				FCCOBIX_CCOBIX=0x02;
 				FCCOB=((uint16_t*)data)[0];
 				FCCOBIX_CCOBIX=0x03;
@@ -198,11 +230,25 @@ void FlashWrite(tFlashParam* FlashParam)
 				}
 				else
 				{
+					uint8 savedPage = PPAGE;
+					uint16 addrInWindow = address&0xFFFF;
+
+					PPAGE = (address>>16)&0xFF;
+					if( ((*(volatile uint32*)addrInWindow) != data[0]) ||
+						((*(volatile uint32*)(addrInWindow+4)) != data[1]) )
+					{
+						FlashParam->errorcode = kFlashFailed;
+						FlashParam->errorAddress = address;
+					}
+					PPAGE = savedPage;
+
 					data += 2;
 					address += 8;
 					length -= 8;
+
 				}
 			}
+
 		}
 	}
 	else
