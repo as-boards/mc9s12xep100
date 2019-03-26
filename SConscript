@@ -147,6 +147,8 @@ else:
     asenv.Append(CPPPATH=['%s/Project/Sources'%(cwd)])
 asenv.Append(CPPPATH=['%s/../../board.posix/common'%(cwd)])
 asenv.Append(CPPDEFINES=['IS_ARCH16',
+                         'ISR_ATTR=__near',
+                         'ISR_ADDR(isr)=(uint16)isr',
                          '_G_va_list=va_list',
                          'OS_TICKS_PER_SECOND=100',
                          'DCM_DEFAULT_RXBUF_SIZE=512',
@@ -164,7 +166,9 @@ if('CANIF' in MODULES):
     asenv.Append(CPPDEFINES=['CANIF_TASK_FIFO_MODE=STD_OFF'])
 
 if('SHELL' in MODULES):
-    asenv.Append(CPPDEFINES=['USE_SHELL_WITHOUT_TASK','ENABLE_SHELL_ECHO_BACK'])
+    if('MINIBLT' in MODULES):
+        asenv.Append(CPPDEFINES=['USE_SHELL_WITHOUT_TASK'])
+    asenv.Append(CPPDEFINES=['ENABLE_SHELL_ECHO_BACK'])
     asenv.Append(CPPDEFINES=['CMDLINE_MAX=64','FLASH_CMD_MAX_DATA=64'])
 
 if('FLASH' in MODULES):

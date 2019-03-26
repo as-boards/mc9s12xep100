@@ -1,6 +1,6 @@
 <?xml version='1.0' encoding='utf-8'?>
 <AS>
 	<Os>
-		<ISR Name='Isr_SystemTick' Vector='7'  Application="OsDefaultApp"/>
+		<ISR Name='Isr_SystemTick' Vector='119-7'  Application="OsDefaultApp"/>
 	</Os>
 </AS>

@@ -22,6 +22,10 @@
 #ifdef USE_CLIB_STDIO_PRINTF
 #define TERMIO_PutChar __putchar
 #endif
+
+
+#define LEDCPU     PORTK_PK4
+#define LEDCPU_dir DDRK_DDRK4
 /* ============================ [ TYPES     ] ====================================================== */
 typedef struct {
 	uint16 tag;   /* 2 bytes */
@@ -134,12 +138,18 @@ void Mcu_DistributePllClock( void )
 	SCI0CR1 = 0x00;
 	SCI0CR2 = 0x0C;	/* enable RX and TX, no interrupt */
 
-	printf("IVBR: %X\n",(uint32)IVBR);
+	LEDCPU_dir=1;
 }
-
 
 void TaskIdleHook(void)
 {
+	static TickType timer = 0;
+	if((OsTickCounter-timer) >= (OS_TICKS_PER_SECOND/2))
+	{
+		LEDCPU=~LEDCPU;
+		timer = OsTickCounter;
+	}
+
 	#ifdef USE_SHELL
 	if(SCI0SR1_RDRF)
 	{
@@ -148,6 +158,8 @@ void TaskIdleHook(void)
 		SHELL_input(ch);
 	}
 	#endif
+
+
 }
 
 imask_t __Irq_Save(void)

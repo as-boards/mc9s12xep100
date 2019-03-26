@@ -218,7 +218,7 @@ ENTRIES /* keep the following unreferenced variables */
   //_vectab OsBuildNumber _OsOrtiStackStart _OsOrtiStart
 END
 
-STACKSIZE 0x100   /* size of the stack (will be allocated in DEFAULT_RAM) */
+STACKSIZE 0x200   /* size of the stack (will be allocated in DEFAULT_RAM) */
 
 /* use these definitions in plane of the vector table ('vectors') above */
 //VECTOR 0 _Startup /* reset vector: this is the default entry point for a C/C++ application. */
