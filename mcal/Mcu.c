@@ -226,18 +226,20 @@ void StartOsTick(void)
 }
 
 #pragma CODE_SEG __NEAR_SEG NON_BANKED
-#if defined(__AS_BOOTLOADER__)
+#if 1 //defined(__AS_BOOTLOADER__)
 #define ISRNO_VRTI      VectorNumber_Vrti
 #define ISRNO_VCAN0RX   VectorNumber_Vcan0rx
 #define ISRNO_VCAN0TX   VectorNumber_Vcan0tx
 #define ISRNO_VCAN0ERR  VectorNumber_Vcan0err
 #define ISRNO_VCAN0WKUP VectorNumber_Vcan0wkup
+#define ISRNO_VSWI      VectorNumber_Vswi
 #else
 #define ISRNO_VRTI
 #define ISRNO_VCAN0RX
 #define ISRNO_VCAN0TX
 #define ISRNO_VCAN0ERR
 #define ISRNO_VCAN0WKUP
+#define ISRNO_VSWI
 #endif
 interrupt ISRNO_VRTI void Isr_SystemTick(void)
 {
@@ -249,5 +251,12 @@ interrupt ISRNO_VCAN0RX  void Can_0_RxIsr_Entry( void  ) {	Can_0_RxIsr(); }
 interrupt ISRNO_VCAN0TX  void Can_0_TxIsr_Entry( void  ) {	Can_0_TxIsr(); }
 interrupt ISRNO_VCAN0ERR void Can_0_ErrIsr_Entry( void  ) {	Can_0_ErrIsr(); }
 interrupt ISRNO_VCAN0WKUP void Can_0_WakeIsr_Entry( void  ) {	Can_0_WakeIsr(); }
+#endif
+
+#if !defined(USE_ASKAR)
+interrupt ISRNO_VSWI void Isr_SoftwareInterrupt(void)
+{
+
+}
 #endif
 #pragma CODE_SEG DEFAULT

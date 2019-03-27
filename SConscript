@@ -96,7 +96,7 @@ MODULES = ['DET',
            'CAN','CANIF','PDUR','CANTP','DCM',
            'MCU',
            'ECUM','SCHM',
-           'TINYOS',
+           'ASKAR',
            'CANTP_MINI','DCM_MINI',
            'CLIB_STDIO_PRINTF',
            'SHELL','RINGBUFFER','CLIB_STRTOK_R',
@@ -127,7 +127,7 @@ if(asenv['RELEASE']=='asboot'):
                        'objs':Glob('mcal/Flash.c')+Glob('miniblt/Sources/mc9s12xep100.c')}
 
 ARCH='none'
-arch='9s12x'
+arch='s12cpuv2'
 
 if(asenv['MODULES'] is None):
     asenv['MODULES'] = MODULES
@@ -148,6 +148,7 @@ else:
 asenv.Append(CPPPATH=['%s/../../board.posix/common'%(cwd)])
 asenv.Append(CPPDEFINES=['IS_ARCH16',
                          'ISR_ATTR=__near',
+                         'OS_STK_SIZE_SCALER=1/4',
                          'ISR_ADDR(isr)=(uint16)isr',
                          '_G_va_list=va_list',
                          'OS_TICKS_PER_SECOND=100',
