@@ -25,11 +25,6 @@
 
 #include "Flash.h"
 /* ============================ [ MACROS    ] ====================================================== */
-#define LEDCPU     PORTK_PK4
-#define LEDCPU_dir DDRK_DDRK4
-
-#define OSCCLK 16000000
-
 #define APP_TAG_ADDR 0xC000
 /* ============================ [ TYPES     ] ====================================================== */
 typedef struct {
@@ -39,6 +34,8 @@ typedef struct {
 } AppTag_Type;
 /* ============================ [ DECLARES  ] ====================================================== */
 extern TickType OsTickCounter;
+
+extern void TaskIdleHook(void);
 /* ============================ [ DATAS     ] ====================================================== */
 #pragma DATA_SEG __NEAR_SEG FLASH_RAM
 tFlashHeader FlashDriverRam @ 0x3900;
@@ -47,17 +44,12 @@ tFlashHeader FlashDriverRam @ 0x3900;
 /* ============================ [ FUNCTIONS ] ====================================================== */
 void BL_HwInit(void)
 {
-	LEDCPU_dir=1;
+
 }
 
 void BL_HwMonitor(void)
 {
-	static TickType timer = 0;
-	if((OsTickCounter-timer) >= (OS_TICKS_PER_SECOND/2))
-	{
-		LEDCPU=~LEDCPU;
-		timer = OsTickCounter;
-	}
+	TaskIdleHook();
 }
 
 void application_main(void)

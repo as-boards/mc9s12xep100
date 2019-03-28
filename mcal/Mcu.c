@@ -69,8 +69,6 @@ void Mcu_Init(const Mcu_ConfigType *configPtr)
 		volatile uint16 tag;
 		tag = app_tag.tag; /* access to keep the app tag */
 	}
-#endif
-#if !defined(__AS_BOOTLOADER__)
 	IVBR = ((uint16)tisr_pc)>>8;
 #endif
 	CLKSEL &= 0x7f;       //set OSCCLK as sysclk
@@ -231,7 +229,7 @@ void StartOsTick(void)
 }
 
 #pragma CODE_SEG __NEAR_SEG NON_BANKED
-#if 1 //defined(__AS_BOOTLOADER__)
+#if defined(__AS_BOOTLOADER__)
 #define ISRNO_VRTI      VectorNumber_Vrti
 #define ISRNO_VCAN0RX   VectorNumber_Vcan0rx
 #define ISRNO_VCAN0TX   VectorNumber_Vcan0tx
