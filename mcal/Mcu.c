@@ -35,8 +35,13 @@ typedef struct {
 /* ============================ [ DECLARES  ] ====================================================== */
 extern void OsTick(void);
 
-#if !defined(USE_MINIBLT)
+#if !defined(__AS_BOOTLOADER__)
 extern const FP tisr_pc[];
+#endif
+
+#ifdef USE_ASKAR
+extern void EnterISR(void);
+extern void LeaveISR(void);
 #endif
 
 extern void _Startup(void);
@@ -243,8 +248,17 @@ void StartOsTick(void)
 #endif
 interrupt ISRNO_VRTI void Isr_SystemTick(void)
 {
+	#ifdef USE_ASKAR
+	EnterISR();
+	#endif
 	CRGFLG &=0xEF;			// clear the interrupt flag
 	OsTick();
+	#ifdef USE_ASKAR
+	SignalCounter(0);
+	#endif
+	#ifdef USE_ASKAR
+	LeaveISR();
+	#endif
 }
 #ifdef USE_CAN
 interrupt ISRNO_VCAN0RX  void Can_0_RxIsr_Entry( void  ) {	Can_0_RxIsr(); }
