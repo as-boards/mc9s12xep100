@@ -229,7 +229,7 @@ void StartOsTick(void)
 }
 
 #pragma CODE_SEG __NEAR_SEG NON_BANKED
-#if defined(__AS_BOOTLOADER__)
+#if defined(__AS_BOOTLOADER__) || defined(DEBUG_ASCORE)
 #define ISRNO_VRTI      VectorNumber_Vrti
 #define ISRNO_VCAN0RX   VectorNumber_Vcan0rx
 #define ISRNO_VCAN0TX   VectorNumber_Vcan0tx

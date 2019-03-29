@@ -145,6 +145,13 @@ if(asenv['RELEASE']=='asboot'):
 else:
     objs += Glob('Project/Sources/*.c')
     asenv.Append(CPPPATH=['%s/Project/Sources'%(cwd)])
+    print('INFO: set DEBUG_ASCORE=YES to enable the debug of ascore')
+    if(os.getenv('DEBUG_ASCORE')=='YES'):
+        asenv.Append(CPPDEFINES=['DEBUG_ASCORE'])
+        RunCommand('sed -i "224c VECTOR 0 _Startup" %s/Project/prm/Project.prm'%(cwd))
+    else:
+        RunCommand('sed -i "224c //VECTOR 0 _Startup" %s/Project/prm/Project.prm'%(cwd))
+
 asenv.Append(CPPPATH=['%s/../../board.posix/common'%(cwd)])
 asenv.Append(CPPDEFINES=['IS_ARCH16',
                          'ISR_ATTR=__near',
