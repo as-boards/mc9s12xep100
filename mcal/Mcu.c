@@ -44,6 +44,18 @@ extern void EnterISR(void);
 extern void LeaveISR(void);
 #endif
 
+#ifdef USE_SDCARD
+#define CD PTIJ_PTIJ0
+#define CD_dir DDRJ_DDRJ0
+#define WP PTIJ_PTIJ1
+#define WP_dir DDRJ_DDRJ1
+
+#define DDR_INI()       DDRS |= 0xe0
+#define SD_select()        PTS_PTS7=0
+#define SD_deselect()      PTS_PTS7=1
+#define PTS_INIT()       DDRS |= 0xe0
+#endif
+
 extern void _Startup(void);
 /* ============================ [ DATAS     ] ====================================================== */
 const Mcu_ConfigType const McuConfigData[1];
@@ -59,6 +71,23 @@ void TERMIO_PutChar(char c)
 	while(!SCI0SR1_TDRE);
 	SCI0DRL = c;
 }
+
+#ifndef USE_CLIB_MISCLIB
+size_t strnlen(const char* s, size_t maxlen)
+{
+	const char *sc;
+
+	for (sc = s; *sc != '\0'; ++sc)
+	{
+		if((sc-s) >= maxlen)
+		{
+			break;
+		}
+	}
+
+	return sc - s;
+}
+#endif
 
 void Mcu_Init(const Mcu_ConfigType *configPtr)
 {
@@ -161,9 +190,81 @@ void TaskIdleHook(void)
 		SHELL_input(ch);
 	}
 	#endif
-
-
 }
+
+#ifdef USE_SDCARD
+void sd_spi_init(int sd)
+{
+	DDRS    = 0xE0;
+	SPI0CR2 = 0x10;
+	SPI0CR1 = 0x5e;
+	SPI0BR  = 0x45; /* set baudrate 100k */
+	SD_deselect();
+	CD_dir=0;
+	WP_dir=0;
+}
+
+int sd_spi_transmit(int sd, const uint8_t* txData, uint8_t* rxData, size_t size)
+{
+	int ercd = 0;
+	TimerType timer;
+	uint8_t u8Value;
+
+	StartTimer(&timer);
+	while((size > 0) && (GetTimer(&timer)<(MS2TICKS(size))))
+	{
+		if(txData != NULL)
+		{
+			u8Value = *txData;
+			txData++;
+		}
+		while ((0==SPI0SR_SPTEF) && (GetTimer(&timer)<(MS2TICKS(size))));
+		SPI0DR = u8Value;
+		while((0==SPI0SR_SPIF) && (GetTimer(&timer)<(MS2TICKS(size))));
+		u8Value = SPI0DR;
+
+		if(rxData != NULL)
+		{
+			*rxData = u8Value;
+			rxData++;
+		}
+		size --;
+	}
+
+	return 0;
+}
+
+void sd_chip_selected(int sd, int select)
+{
+	PTS_PTS7=select;
+}
+
+int sd_is_detected(int sd)
+{
+	int rv;
+
+	if(1 == CD)
+	{
+		rv = FALSE;
+	}
+	else
+	{
+		rv == TRUE;
+	}
+
+	return rv;
+}
+
+void sd_spi_clk_slow(int sd)
+{
+	SPI0BR  = 0x45; /* set baudrate 100k */
+}
+
+void sd_spi_fast_fast(int sd)
+{
+	SPI0BR  = 0x11; /* set baudrate 4M */
+}
+#endif
 
 imask_t __Irq_Save(void)
 {

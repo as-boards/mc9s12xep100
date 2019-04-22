@@ -93,15 +93,30 @@ all:$(OBJS) {0}.abs
 asenv['Program'] = Program9S12
 
 MODULES = ['DET',
-           'CAN','CANIF','PDUR','CANTP','DCM',
            'MCU',
            'ECUM','SCHM',
-           'DCM_MINI',
-           'ASKAR',
            'CLIB_STDIO_PRINTF',
            'SHELL','RINGBUFFER','CLIB_STRTOK_R',
            'MPC9S12XEP100'
            ]
+
+print('for travil version of codewarrior, code size is limited to 32K,\n'
+      'so CAN stack and VFS can\'t be enabled at the same time,\n'
+      '  set CW32K_ONLY=CAN or VFS to choose between CAN stack and VFS\n'
+      '  unset CW32K_ONLY to unable both CAN and VFS by default\n')
+if((os.getenv('CW32K_ONLY') == None) or (os.getenv('CW32K_ONLY') == 'CAN')):
+    MODULES += ['ASKAR']
+    MODULES += ['CAN','CANIF','PDUR','CANTP','DCM','DCM_MINI']
+
+if((os.getenv('CW32K_ONLY') == None) or (os.getenv('CW32K_ONLY') == 'VFS')):
+    if(os.getenv('CW32K_ONLY') == 'VFS'):
+        MODULES += ['TINYOS']
+    MODULES += ['FATFS','VFS','DEV','SDCARD','CLIB_ASHEAP']
+
+if('CLIB_ASHEAP' in MODULES):
+    asenv.Append(CPPDEFINES=['configTOTAL_HEAP_SIZE=0x800'])
+
+asenv.Append(CPPDEFINES=['USE_STD_ERROR'])
 
 asenv['LINK_SCRIPTS'] = '%s/Project/prm/Project.prm'%(cwd)
 
