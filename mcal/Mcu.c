@@ -208,19 +208,25 @@ int sd_spi_transmit(int sd, const uint8_t* txData, uint8_t* rxData, size_t size)
 {
 	int ercd = 0;
 	TimerType timer;
+	TickType timeout;
 	uint8_t u8Value;
 
+	timeout = size;
 	StartTimer(&timer);
-	while((size > 0) && (GetTimer(&timer)<(MS2TICKS(size))))
+	while((size > 0) && (GetTimer(&timer)<=(MS2TICKS(timeout))))
 	{
 		if(txData != NULL)
 		{
 			u8Value = *txData;
 			txData++;
 		}
-		while ((0==SPI0SR_SPTEF) && (GetTimer(&timer)<(MS2TICKS(size))));
+		else
+		{
+			u8Value = 0xFF;
+		}
+		while((0==SPI0SR_SPTEF) && (GetTimer(&timer)<=(MS2TICKS(timeout))));
 		SPI0DR = u8Value;
-		while((0==SPI0SR_SPIF) && (GetTimer(&timer)<(MS2TICKS(size))));
+		while((0==SPI0SR_SPIF) && (GetTimer(&timer)<=(MS2TICKS(timeout))));
 		u8Value = SPI0DR;
 
 		if(rxData != NULL)
@@ -231,7 +237,12 @@ int sd_spi_transmit(int sd, const uint8_t* txData, uint8_t* rxData, size_t size)
 		size --;
 	}
 
-	return 0;
+	if(GetTimer(&timer)>(MS2TICKS(timeout)))
+	{
+		ercd = ETIMEDOUT;
+	}
+
+	return ercd;
 }
 
 void sd_chip_selected(int sd, int select)

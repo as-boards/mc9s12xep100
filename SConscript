@@ -100,10 +100,10 @@ MODULES = ['DET',
            'MPC9S12XEP100'
            ]
 
-print('for travil version of codewarrior, code size is limited to 32K,\n'
+print('INFO: for travil version of codewarrior, code size is limited to 32K,\n'
       'so CAN stack and VFS can\'t be enabled at the same time,\n'
       '  set CW32K_ONLY=CAN or VFS to choose between CAN stack and VFS\n'
-      '  unset CW32K_ONLY to unable both CAN and VFS by default\n')
+      '  set CW32K_ONLY= to enable both CAN and VFS by default\n')
 if((os.getenv('CW32K_ONLY') == None) or (os.getenv('CW32K_ONLY') == 'CAN')):
     MODULES += ['ASKAR']
     MODULES += ['CAN','CANIF','PDUR','CANTP','DCM','DCM_MINI']
