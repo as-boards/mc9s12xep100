@@ -4,11 +4,12 @@ cwd = GetCurrentDir()
 
 Import('asenv')
 ASROOT = asenv['ASROOT']
+BDIR = asenv['BDIR']
 
 def IsNeedBuild(obj, target):
     if(GetOption('force')):
         return True
-    robj = 'build/%s/%s.o'%(target, os.path.basename(obj)[:-2])
+    robj = '%s/%s/%s.o'%(BDIR, target, os.path.basename(obj)[:-2])
     if(os.path.exists(robj)):
         rtm = os.path.getmtime(robj)
         stm = os.path.getmtime(obj)
@@ -17,8 +18,10 @@ def IsNeedBuild(obj, target):
     return True
 
 def Program9S12(target, objs, env):
+    target = os.path.basename(target)
+    MKDir('%s/%s'%(BDIR, target))
     if(GetOption('clean')):
-        RunCommand('rm -fv build/%s/*.o'%(target))
+        RunCommand('rm -fv %s/*'%(BDIR))
         exit()
     cw = os.getenv('CWCC_PATH')
     if(cw is None):
@@ -28,9 +31,9 @@ def Program9S12(target, objs, env):
         exit()
     HIWAVE ='"%s/Prog/hiwave.exe" '%(cw)
     if('run' in COMMAND_LINE_TARGETS):
-        cmd = HIWAVE+'-W -Prod=TBDML.ini -instance=tbdml '+os.path.abspath('any.abs')+' -CMD="Go"'
+        cmd = HIWAVE+'-W -Prod=TBDML.ini -instance=tbdml '+os.path.abspath('%s/mc9s12xep100.abs'%(BDIR))+' -CMD="Go"'
         if('sim' in COMMAND_LINE_TARGETS):
-            cmd = HIWAVE+'-W -Prod=Full_Chip_Simulation.ini -instance=sim '+os.path.abspath('any.abs')
+            cmd = HIWAVE+'-W -Prod=Full_Chip_Simulation.ini -instance=sim '+os.path.abspath('%s/mc9s12xep100.abs'%(BDIR))
         print('cmd is:', cmd)
         with open('run9s12.bat','w') as fp:
             fp.write('@echo off\ncd %s/Project\n%s\n'%(cwd,cmd))
@@ -42,11 +45,11 @@ def Program9S12(target, objs, env):
     LINK = cw + '/Prog/linker.exe'
     S19  = cw + '/Prog/burner.exe'
     MAKE = '"{0}/Prog/piper.exe" "{0}/Prog/maker.exe"'.format(cw)
-    with open('build/%s/makefile.9s12'%(target),'w') as fp:
+    with open('%s/makefile-%s.9s12'%(BDIR, target),'w') as fp:
         fp.write('CC = "%s"\n'%(CC))
         fp.write('AS = "%s"\n'%(AS))
         fp.write('LD = "%s"\n'%(LINK))
-        fp.write('COMMON_FLAGS = -WErrFileOff -WOutFileOff -EnvOBJPATH=build/%s\n'%(target))
+        fp.write('COMMON_FLAGS = -WErrFileOff -WOutFileOff -EnvOBJPATH=%s/%s\n'%(BDIR, target))
         fp.write('C_FLAGS   = -I"%s/lib/hc12c/include" -Mb -CpuHCS12X\n'%(cw))
         fp.write('ASM_FLAGS = -I"%s/lib/hc12c/include" -Mb -CpuHCS12X\n'%(cw))
         fp.write('LD_FLAGS  = -M -WmsgNu=abcet\n')
@@ -69,7 +72,7 @@ def Program9S12(target, objs, env):
         for obj in objs:
             obj = str(obj)
             if(obj.endswith('.c') or obj.endswith('.C')):
-                fp.write('build/%s/%s.o '%(target, os.path.basename(obj)[:-2]))
+                fp.write('%s/%s/%s.o '%(BDIR, target, os.path.basename(obj)[:-2]))
         fp.write('''\n
 .asm.o:
     $(ASM) $*.asm $(COMMON_FLAGS) $(ASM_FLAGS)
@@ -82,12 +85,12 @@ all:$(OBJS) {0}.abs
 
 {0}.abs :
     $(LD) {1} $(COMMON_FLAGS) $(LD_FLAGS) -Add($(OBJS_LINK)) -Add($(LIBS)) -M -O$*.abs'''.format(
-        target, env['LINK_SCRIPTS'], S19)
+        '%s/%s'%(BDIR,target), env['LINK_SCRIPTS'], S19)
     )
-    cmd = '%s build/%s/makefile.9s12'%(MAKE, target)
-    with open('build%s.bat'%(target),'w') as fp:
+    cmd = '%s %s/makefile-%s.9s12'%(MAKE, BDIR, target)
+    with open('%s/%s.bat'%(BDIR, target),'w') as fp:
         fp.write('@echo off\n%s\n'%(cmd))
-    if(0 != os.system('build%s'%(target))):
+    if(0 != os.system('%s/%s.bat'%(BDIR, target))):
         print('build of %s failed\n  %s\n'%(target, cmd))
 
 asenv['Program'] = Program9S12
@@ -97,7 +100,7 @@ MODULES = ['DET',
            'ECUM','SCHM',
            'CLIB_STDIO_PRINTF',
            'SHELL','RINGBUFFER','CLIB_STRTOK_R',
-           'MPC9S12XEP100'
+           'MPC9S12XEP100','COMMONXML'
            ]
 
 print('INFO: for travil version of codewarrior, code size is limited to 32K,\n'
@@ -131,7 +134,7 @@ if(asenv['RELEASE']=='asboot'):
                'CLIB_STDIO_PRINTF',
                'SHELL','RINGBUFFER','CLIB_STRTOK_R',
                'MEM_CMD','JMP_CMD',
-               'MPC9S12XEP100'
+               'MPC9S12XEP100','BOOTLOADER'
            ]
     asenv['LINK_SCRIPTS'] = '%s/miniblt/prm/Project.prm'%(cwd)
 
