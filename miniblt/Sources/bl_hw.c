@@ -1,67 +1,63 @@
 /**
- * AS - the open source Automotive Software on https://github.com/parai
- *
- * Copyright (C) 2019  AS <parai@foxmail.com>
- *
- * This source code is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License version 2 as published by the
- * Free Software Foundation; See <http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt>.
- *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- * for more details.
+ * SSAS - Simple Smart Automotive Software
+ * Copyright (C) 2019-2023 Parai Wang <parai@foxmail.com>
  */
-/* ============================ [ INCLUDES  ] ====================================================== */
+/* ================================ [ INCLUDES  ] ============================================== */
 #include <hidef.h>      /* common defines and macros */
-#include "derivative.h"      /* derivative-specific definitions */
-#include "miniblt.h"
+#include "derivative.h" /* derivative-specific definitions */
 #include "Mcu.h"
 #include "Can.h"
-#include "Os.h"
-#ifdef USE_SHELL
-#include "shell.h"
-#endif
-
 #include "Flash.h"
-/* ============================ [ MACROS    ] ====================================================== */
+#include "Dcm.h"
+#include <stdio.h>
+/* ================================ [ MACROS    ] ============================================== */
 #define APP_TAG_ADDR 0xC000
-/* ============================ [ TYPES     ] ====================================================== */
+/* ================================ [ TYPES     ] ============================================== */
+typedef __far void (*FP)();
 typedef struct {
-	uint16 tag;   /* 2 bytes */
-	FP     entry; /* 3 bytes */
-	uint8  reserved;
+  uint16 tag; /* 2 bytes */
+  FP entry;   /* 3 bytes */
+  uint8 reserved;
 } AppTag_Type;
-/* ============================ [ DECLARES  ] ====================================================== */
-extern TickType OsTickCounter;
-
-extern void TaskIdleHook(void);
-/* ============================ [ DATAS     ] ====================================================== */
+/* ================================ [ DECLARES  ] ============================================== */
+/* ================================ [ DATAS     ] ============================================== */
 #pragma DATA_SEG __NEAR_SEG FLASH_RAM
-tFlashHeader FlashDriverRam @ 0x3900;
+tFlashHeader FlashDriverRam @0x3900;
 #pragma DATA_SEG DEFAULT
-/* ============================ [ LOCALS    ] ====================================================== */
-/* ============================ [ FUNCTIONS ] ====================================================== */
-void BL_HwInit(void)
-{
+/* ================================ [ LOCALS    ] ============================================== */
+/* ================================ [ FUNCTIONS ] ============================================== */
+void application_main(void) {
+  AppTag_Type *appTag = (AppTag_Type *)APP_TAG_ADDR;
 
+  if ((0xA55A == appTag->tag) && (0x5A == appTag->reserved) && (NULL != appTag->entry)) {
+    printf("jmp %X\n", (uint32)appTag->entry);
+    CRGINT_RTIE = 0; /* stop os tick ISR */
+    appTag->entry();
+  }
 }
 
-void BL_HwMonitor(void)
-{
-	TaskIdleHook();
+void BL_JumpToApp(void) {
+  application_main();
 }
 
-void application_main(void)
-{
-	AppTag_Type *appTag = (AppTag_Type*)APP_TAG_ADDR;
+boolean BL_IsUpdateRequested(void) {
+  boolean r = FALSE;
+  uint32_t *magic = (uint32_t *)&FlashHeader;
+  if (0x12345678 == *magic) {
+    r = TRUE;
+  }
 
-	if( (0xA55A == appTag->tag) &&
-		(0x5A == appTag->reserved) &&
-		(NULL != appTag->entry))
-	{
-		printf("jmp %X\n", (uint32)appTag->entry);
-		CRGINT_RTIE = 0;	/* stop os tick ISR */
-		appTag->entry();
-	}
+  return r;
+}
+
+Std_ReturnType BL_GetProgramCondition(Dcm_ProgConditionsType **cond) {
+  Std_ReturnType r = E_NOT_OK;
+  uint32_t *magic = (uint32_t *)&FlashHeader;
+
+  if (0x12345678 == *magic) {
+    r = E_OK;
+    *cond = (Dcm_ProgConditionsType *)(&magic[1]);
+  }
+
+  return r;
 }

@@ -1,18 +1,8 @@
 /**
- * AS - the open source Automotive Software on https://github.com/parai
- *
- * Copyright (C) 2019  AS <parai@foxmail.com>
- *
- * This source code is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License version 2 as published by the
- * Free Software Foundation; See <http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt>.
- *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- * for more details.
+ * SSAS - Simple Smart Automotive Software
+ * Copyright (C) 2019-2023 Parai Wang <parai@foxmail.com>
  */
-/* ============================ [ INCLUDES  ] ====================================================== */
+/* ================================ [ INCLUDES  ] ============================================== */
 #include "Std_Types.h"
 #include <hidef.h>
 #include "derivative.h"
@@ -26,7 +16,7 @@
 
 #include "Flash.h"
 #include "asdebug.h"
-/* ============================ [ MACROS    ] ====================================================== */
+/* ================================ [ MACROS    ] ============================================== */
 #if FLASH_WRITE_SIZE%8 != 0
 #error FLASH_WRITE_SIZE must be n times of 8
 #endif
@@ -42,9 +32,9 @@
 
 #define FlashHeader _Startup
 
-/* ============================ [ TYPES     ] ====================================================== */
-/* ============================ [ DECLARES  ] ====================================================== */
-/* ============================ [ DATAS     ] ====================================================== */
+/* ================================ [ TYPES     ] ============================================== */
+/* ================================ [ DECLARES  ] ============================================== */
+/* ================================ [ DATAS     ] ============================================== */
 const tFlashHeader FlashHeader =
 {
 	/* .Info */1+(2<<8)+(169<<24),
@@ -54,8 +44,8 @@ const tFlashHeader FlashHeader =
 	/*.Write     =*/ FlashWrite,
 	/*.Read      =*/ FlashRead
 };
-/* ============================ [ LOCALS    ] ====================================================== */
-/* ============================ [ FUNCTIONS ] ====================================================== */
+/* ================================ [ LOCALS    ] ============================================== */
+/* ================================ [ FUNCTIONS ] ============================================== */
 void FlashInit(tFlashParam* FlashParam)
 {
 	if ( (FLASH_DRIVER_VERSION_PATCH == FlashParam->patchlevel) ||
