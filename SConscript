@@ -2,10 +2,17 @@ from building import *
 
 CWD = GetCurrentDir()
 
+generate(Glob('config/*.json'))
+
+cfgDcm = Glob('config/GEN/Dcm_Cfg.c')
+
+cfgLinSlaveI2C = Glob('config/Lin_Slave_I2C_Cfg.c')
+
 ApplicationCanBL = query_application('CanBL')
 ApplicationCanApp = query_application('CanApp')
 
-objsBL = Glob('miniblt/Sources/*.c') + Glob('mcal/Can.c') + Glob('mcal/Mcu.c')
+objsBL = Glob('miniblt/Sources/*.c') + Glob('mcal/Can.c') + \
+    Glob('mcal/Mcu.c') + Glob('mcal/Lin_Slave_I2C_HW.c')
 
 
 @ register_application
@@ -26,6 +33,10 @@ class ApplicationMC9S12Boot(ApplicationCanBL):
                 self.LIBS.remove(libName)
             macro = 'USE_%s' % (libName.upper())
             self.Remove(CPPDEFINES=[macro])
+        self.LIBS.append('LinSlave:i2c')
+        self.RegisterConfig('LinSlave:i2c', cfgLinSlaveI2C)
+        self.Append(CPPDEFINES=['USE_LIN_SLAVE'])
+        self.RegisterConfig('Dcm', cfgDcm, force=True)
         self.source += objsBL
 
 

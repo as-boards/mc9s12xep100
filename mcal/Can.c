@@ -10,6 +10,11 @@
 /* ================================ [ MACROS    ] ============================================== */
 /* this just alow only one HTH/HRH for each CAN controller */
 #define CAN_MAX_HOH 1
+
+#define ISRNO_VCAN0RX VectorNumber_Vcan0rx
+#define ISRNO_VCAN0TX VectorNumber_Vcan0tx
+#define ISRNO_VCAN0ERR VectorNumber_Vcan0err
+#define ISRNO_VCAN0WKUP VectorNumber_Vcan0wkup
 /* ================================ [ TYPES     ] ============================================== */
 struct can_msg {
   unsigned int id;
@@ -222,14 +227,22 @@ void Can_MainFunction_Read(void) {
   }
 }
 
-void Can_0_RxIsr(void) {
+#pragma CODE_SEG __NEAR_SEG NON_BANKED
+
+interrupt ISRNO_VCAN0RX void Can_0_RxIsr_Entry(void) {
+
 }
 
-void Can_0_TxIsr(void) {
+interrupt ISRNO_VCAN0TX void Can_0_TxIsr_Entry(void) {
+
 }
 
-void Can_0_ErrIsr(void) {
+interrupt ISRNO_VCAN0ERR void Can_0_ErrIsr_Entry(void) {
+
 }
 
-void Can_0_WakeIsr(void) {
+interrupt ISRNO_VCAN0WKUP void Can_0_WakeIsr_Entry(void) {
+
 }
+
+#pragma CODE_SEG DEFAULT

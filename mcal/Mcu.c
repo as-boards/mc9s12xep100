@@ -17,6 +17,21 @@
 
 #define LEDCPU PORTK_PK4
 #define LEDCPU_dir DDRK_DDRK4
+
+#ifdef USE_SDCARD
+#define CD PTIJ_PTIJ0
+#define CD_dir DDRJ_DDRJ0
+#define WP PTIJ_PTIJ1
+#define WP_dir DDRJ_DDRJ1
+
+#define DDR_INI() DDRS |= 0xe0
+#define SD_select() PTS_PTS7 = 0
+#define SD_deselect() PTS_PTS7 = 1
+#define PTS_INIT() DDRS |= 0xe0
+#endif
+
+#define ISRNO_VRTI VectorNumber_Vrti
+#define ISRNO_VSWI VectorNumber_Vswi
 /* ================================ [ TYPES     ] ============================================== */
 typedef __far void (*FP)();
 typedef struct {
@@ -36,18 +51,6 @@ extern const FP tisr_pc[];
 #ifdef USE_OS
 extern void EnterISR(void);
 extern void LeaveISR(void);
-#endif
-
-#ifdef USE_SDCARD
-#define CD PTIJ_PTIJ0
-#define CD_dir DDRJ_DDRJ0
-#define WP PTIJ_PTIJ1
-#define WP_dir DDRJ_DDRJ1
-
-#define DDR_INI() DDRS |= 0xe0
-#define SD_select() PTS_PTS7 = 0
-#define SD_deselect() PTS_PTS7 = 1
-#define PTS_INIT() DDRS |= 0xe0
 #endif
 
 extern void _Startup(void);
@@ -288,22 +291,6 @@ std_time_t Std_GetTime(void) {
 }
 
 #pragma CODE_SEG __NEAR_SEG NON_BANKED
-#if defined(__AS_BOOTLOADER__) || defined(DEBUG_ASCORE)
-#define ISRNO_VRTI VectorNumber_Vrti
-#define ISRNO_VCAN0RX VectorNumber_Vcan0rx
-#define ISRNO_VCAN0TX VectorNumber_Vcan0tx
-#define ISRNO_VCAN0ERR VectorNumber_Vcan0err
-#define ISRNO_VCAN0WKUP VectorNumber_Vcan0wkup
-#define ISRNO_VSWI VectorNumber_Vswi
-#else
-#define ISRNO_VRTI
-#define ISRNO_VCAN0RX
-#define ISRNO_VCAN0TX
-#define ISRNO_VCAN0ERR
-#define ISRNO_VCAN0WKUP
-#define ISRNO_VSWI
-#endif
-
 interrupt ISRNO_VRTI void Isr_SystemTick(void) {
 #ifdef USE_OS
   EnterISR();
@@ -317,20 +304,6 @@ interrupt ISRNO_VRTI void Isr_SystemTick(void) {
   LeaveISR();
 #endif
 }
-#ifdef USE_CAN
-interrupt ISRNO_VCAN0RX void Can_0_RxIsr_Entry(void) {
-  Can_0_RxIsr();
-}
-interrupt ISRNO_VCAN0TX void Can_0_TxIsr_Entry(void) {
-  Can_0_TxIsr();
-}
-interrupt ISRNO_VCAN0ERR void Can_0_ErrIsr_Entry(void) {
-  Can_0_ErrIsr();
-}
-interrupt ISRNO_VCAN0WKUP void Can_0_WakeIsr_Entry(void) {
-  Can_0_WakeIsr();
-}
-#endif
 
 #if !defined(USE_OS)
 interrupt ISRNO_VSWI void Isr_SoftwareInterrupt(void) {
