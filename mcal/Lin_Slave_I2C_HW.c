@@ -27,7 +27,7 @@ void Lin_Slave_I2C_HwInit(uint8_t i2cPort, uint8_t devAddr, uint32_t baudrate) {
     IIC0_IBCR = 0xC8;   /* enable IIC and enable interrupt, no ack */
     IIC0_IBSR_IBAL = 1; /* clear IBAL flag */
     IIC0_IBCR2 = 0x00;  /* disable general call, 7 bit address*/
-    IIC0_IBAD = devAddr & 0x7F;
+    IIC0_IBAD = (devAddr & 0x7F) << 1;
     bI2C0Busy = FALSE;
     u8I2C0Mode = I2C_MODE_UNKNOWN;
   }
@@ -82,7 +82,7 @@ void Lin_Slave_I2C_HwMainFunction(uint8_t i2cPort) {
       }
       u8I2C0Mode = I2C_MODE_UNKNOWN;
       bI2C0Busy = FALSE;
-      IIC0_IBCR &= ~(1 << 3); /* ack = 0 */
+      IIC0_IBCR |= (1 << 3); /* ack = 1 */
     }
   }
 }
@@ -94,8 +94,20 @@ interrupt VectorNumber_Viic0 void Lin_Slave_I2C_ISR(void) {
 
   IIC0_IBSR = u8Status; /* clear IBAL and IBIF if set */
 
+  if (u8Status & (1 << 4)) { /* IBAL set */
+    Lin_Slave_I2C_Event(0, LIN_EVENT_ERROR);
+  }
+
   if (u8Status & (1 << 7)) { /* TCF */
-    Lin_Slave_I2C_Event(0, LIN_EVENT_TRANSFER_COMPLETE);
+    if (I2C_MODE_UNKNOWN != u8I2C0Mode) {
+      Lin_Slave_I2C_Event(0, LIN_EVENT_TRANSFER_COMPLETE);
+    }
+
+    if (I2C_MODE_WRITE == u8I2C0Mode) {
+      if (0 == (u8Status & (1 << 0))) { /* RXAK set */
+        Lin_Slave_I2C_Event(0, LIN_EVENT_ACK);
+      }
+    }
   }
 
   if (u8Status & (1 << 6)) {   /* Addressed as a Slave Bit is set */
@@ -115,13 +127,6 @@ interrupt VectorNumber_Viic0 void Lin_Slave_I2C_ISR(void) {
       u8I2C0Mode = I2C_MODE_WRITE;
     }
   }
-
-  if (u8Status & (1 << 4)) { /* IBAL set */
-    Lin_Slave_I2C_Event(0, LIN_EVENT_ERROR);
-  }
-
-  if (0 == (u8Status & (1 << 0))) { /* RXAK set */
-    Lin_Slave_I2C_Event(0, LIN_EVENT_ACK);
-  }
 }
+
 #pragma CODE_SEG DEFAULT
