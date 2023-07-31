@@ -69,8 +69,10 @@ Std_ReturnType Lin_Slave_I2C_HwEnableAck(uint8_t i2cPort, boolean enable) {
 }
 
 void Lin_Slave_I2C_HwMainFunction(uint8_t i2cPort) {
-  uint8_t u8Status = IIC0_IBSR;
+  uint8_t u8Status;
   if (0 == i2cPort) {
+    IIC0_IBCR &= ~(1 << 6); /* IBIE = 0*/
+    u8Status = IIC0_IBSR;
     if (u8Status & (1 << 5)) { /* IBB */
       if (FALSE == bI2C0Busy) {
         Lin_Slave_I2C_Event(0, LIN_EVENT_START);
@@ -84,6 +86,7 @@ void Lin_Slave_I2C_HwMainFunction(uint8_t i2cPort) {
       bI2C0Busy = FALSE;
       IIC0_IBCR |= (1 << 3); /* ack = 1 */
     }
+    IIC0_IBCR |= (1 << 6); /* IBIE = 1*/
   }
 }
 
@@ -93,6 +96,20 @@ interrupt VectorNumber_Viic0 void Lin_Slave_I2C_ISR(void) {
   uint8_t u8Data;
 
   IIC0_IBSR = u8Status; /* clear IBAL and IBIF if set */
+
+  if (u8Status & (1 << 5)) { /* IBB */
+    if (FALSE == bI2C0Busy) {
+      Lin_Slave_I2C_Event(0, LIN_EVENT_START);
+    }
+    bI2C0Busy = TRUE;
+  } else {
+    if (TRUE == bI2C0Busy) {
+      Lin_Slave_I2C_Event(0, LIN_EVENT_STOP);
+    }
+    u8I2C0Mode = I2C_MODE_UNKNOWN;
+    bI2C0Busy = FALSE;
+    IIC0_IBCR |= (1 << 3); /* ack = 1 */
+  }
 
   if (u8Status & (1 << 4)) { /* IBAL set */
     Lin_Slave_I2C_Event(0, LIN_EVENT_ERROR);
