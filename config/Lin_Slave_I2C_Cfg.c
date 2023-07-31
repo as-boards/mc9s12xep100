@@ -26,7 +26,7 @@ static const Lin_ChannelConfigType Lin_ChannelConfigs[] = {
   Lin_FrameDefs,
   ARRAY_SIZE(Lin_FrameDefs),
   100000, /* 100 kbps */
-  100000, /* 10 ms */
+  20000,  /* 20 ms as tick base is 10ms */
   0x51,   /* devAddr */
   0,      /* i2cPort */
 };
@@ -62,9 +62,8 @@ static Std_ReturnType Lin_Slave_DiagRespose(uint8_t channel, Lin_PduType *PduInf
       ret = E_OK;
     }
   } else if (LIN_E_SLAVE_TRANSMIT_OK == notifyResult) {
-    if ((PduInfo->Dl == 8) && (0xD1 == PduInfo->Pid)) {
-      ret = E_OK;
-    }
+
+    ret = E_OK;
   }
   return ret;
 }
@@ -79,9 +78,7 @@ static Std_ReturnType Lin_Slave_ReadAnswerPatten(uint8_t channel, Lin_PduType *P
       ret = E_OK;
     }
   } else if (LIN_E_SLAVE_TRANSMIT_OK == notifyResult) {
-    if ((PduInfo->Dl == 1) && (0xE0 == PduInfo->Pid)) {
-      ret = E_OK;
-    }
+    ret = E_OK;
   }
   return ret;
 }
