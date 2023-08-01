@@ -1,9 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<AS>
-	<Os>
-		<ISR Name='Can_0_TxIsr_Entry' Vector='119-39'  Application="OsDefaultApp"/>
-		<ISR Name='Can_0_RxIsr_Entry' Vector='119-38'  Application="OsDefaultApp"/>
-		<ISR Name='Can_0_ErrIsr_Entry' Vector='119-37'  Application="OsDefaultApp"/>
-		<ISR Name='Can_0_WakeIsr_Entry' Vector='119-36'  Application="OsDefaultApp"/>
-	</Os>
-</AS>

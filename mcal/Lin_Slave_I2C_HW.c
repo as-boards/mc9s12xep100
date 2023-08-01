@@ -8,7 +8,8 @@
 #include <hidef.h>      /* common defines and macros */
 #include "derivative.h" /* derivative-specific definitions */
 #include "Mcu.h"
-#include "Lin_Slave.h"
+#include "Lin_Slave_I2C_Cfg.h"
+#include "Lin_Slave_I2C_Priv.h"
 /* ================================ [ MACROS    ] ============================================== */
 #define I2C_MODE_UNKNOWN 0
 #define I2C_MODE_READ 1
@@ -19,7 +20,7 @@
 #define LIN_I2C_PUT_EVENT(evt)                                                                     \
   do {                                                                                             \
     u8I2CISRStatus[u16I2CISRIndex++] = evt;                                                        \
-    if (u16I2CISRIndex > ARRAY_SIZE(u8I2CISRStatus)) {                                             \
+    if (u16I2CISRIndex >= ARRAY_SIZE(u8I2CISRStatus)) {                                            \
       u16I2CISRIndex = 0;                                                                          \
     }                                                                                              \
   } while (0)
@@ -30,7 +31,6 @@
 /* ================================ [ DECLARES  ] ============================================== */
 /* ================================ [ DATAS     ] ============================================== */
 static boolean bI2C0Busy;
-static uint8_t u8I2C0Mode;
 
 #ifdef LIN_I2C_USE_TRACE_EVENT
 static uint8_t u8I2CISRStatus[128];
@@ -47,7 +47,6 @@ void Lin_Slave_I2C_HwInit(uint8_t i2cPort, uint8_t devAddr, uint32_t baudrate) {
     IIC0_IBAD = (devAddr & 0x7F) << 1;
     IIC0_IBCR = 0xC8; /* enable IIC and enable interrupt, no ack */
     bI2C0Busy = FALSE;
-    u8I2C0Mode = I2C_MODE_UNKNOWN;
   }
 }
 
@@ -65,11 +64,10 @@ Std_ReturnType Lin_Slave_I2C_HwRead(uint8_t i2cPort, uint8_t *data) {
 Std_ReturnType Lin_Slave_I2C_HwWrite(uint8_t i2cPort, uint8_t data) {
   Std_ReturnType ret = E_NOT_OK;
   if (0 == i2cPort) {
-    // if (0 != (IIC0_IBCR & (1 << 4))) { /* Tx Mode */
-    IIC0_IBCR |= (1 << 4);
-    IIC0_IBDR = data;
-    ret = E_OK;
-    //}
+    if (0 != (IIC0_IBCR & (1 << 4))) { /* Tx Mode */
+      IIC0_IBDR = data;
+      ret = E_OK;
+    }
   }
   return ret;
 }
@@ -87,6 +85,20 @@ Std_ReturnType Lin_Slave_I2C_HwEnableAck(uint8_t i2cPort, boolean enable) {
   return ret;
 }
 
+Std_ReturnType Lin_Slave_I2C_Stop(uint8_t i2cPort) {
+  Std_ReturnType ret = E_NOT_OK;
+  uint8_t u8Data;
+  if (0 == i2cPort) {
+    IIC0_IBCR &= ~(1 << 4); /* set Rx Mode */
+    /* a dummy read then releases the SCL line so that the master can generate a STOP signal */
+    u8Data = IIC0_IBDR;
+    (void)u8Data;
+    ret = E_OK;
+  }
+
+  return ret;
+}
+
 void Lin_Slave_I2C_HwMainFunction(uint8_t i2cPort) {
   uint8_t u8Status;
   if (0 == i2cPort) {
@@ -95,7 +107,6 @@ void Lin_Slave_I2C_HwMainFunction(uint8_t i2cPort) {
       u8Status = IIC0_IBSR;
       if (0 == (u8Status & (1 << 5))) { /* IBB = 0 */
         Lin_Slave_I2C_Event(0, LIN_EVENT_STOP);
-        u8I2C0Mode = I2C_MODE_UNKNOWN;
         bI2C0Busy = FALSE;
         IIC0_IBCR |= (1 << 3); /* ack = 1 */
       }
@@ -121,36 +132,18 @@ interrupt VectorNumber_Viic0 void Lin_Slave_I2C_ISR(void) {
 
   if (u8Status & (1 << 4)) { /* IBAL set */
     Lin_Slave_I2C_Event(0, LIN_EVENT_ERROR);
-  }
-
-  if (u8Status & (1 << 7)) { /* TCF */
-    if (I2C_MODE_UNKNOWN != u8I2C0Mode) {
-      Lin_Slave_I2C_Event(0, LIN_EVENT_TRANSFER_COMPLETE);
-    }
-
-    if (I2C_MODE_WRITE == u8I2C0Mode) {
-      if (0 == (u8Status & (1 << 0))) { /* RXAK set */
-        Lin_Slave_I2C_Event(0, LIN_EVENT_ACK);
-      }
-    }
-  }
-
-  if (u8Status & (1 << 6)) {   /* Addressed as a Slave Bit is set */
-    if (u8Status & (1 << 2)) { /* SRW is set */
-      IIC0_IBCR |= (1 << 4);   /* set Tx Mode */
-      if (I2C_MODE_READ != u8I2C0Mode) {
-        Lin_Slave_I2C_Event(0, LIN_EVENT_READ);
-      }
-      u8I2C0Mode = I2C_MODE_READ;
+  } else if (u8Status & (1 << 6)) { /* Addressed as a Slave Bit is set */
+    if (u8Status & (1 << 2)) {      /* SRW is set */
+      IIC0_IBCR |= (1 << 4);        /* set Tx Mode */
+      Lin_Slave_I2C_Event(0, LIN_EVENT_READ);
     } else {
       IIC0_IBCR &= ~(1 << 4); /* set Rx Mode */
-      if (I2C_MODE_WRITE != u8I2C0Mode) {
-        Lin_Slave_I2C_Event(0, LIN_EVENT_WRITE);
-        u8Data = IIC0_IBDR; /* a dummy read */
-        (void)u8Data;
-      }
-      u8I2C0Mode = I2C_MODE_WRITE;
+      Lin_Slave_I2C_Event(0, LIN_EVENT_WRITE);
+      u8Data = IIC0_IBDR; /* a dummy read */
+      (void)u8Data;
     }
+  } else if (u8Status & (1 << 7)) { /* TCF */
+    Lin_Slave_I2C_Event(0, LIN_EVENT_TRANSFER_COMPLETE);
   }
 }
 
