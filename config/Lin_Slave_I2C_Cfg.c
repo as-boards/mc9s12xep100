@@ -6,6 +6,7 @@
 /* ================================ [ INCLUDES  ] ============================================== */
 #include "Lin_Slave_I2C_Cfg.h"
 #include "Lin_Slave_I2C_Priv.h"
+#include "LinTp.h"
 /* ================================ [ MACROS    ] ============================================== */
 /* ================================ [ TYPES     ] ============================================== */
 /* ================================ [ DECLARES  ] ============================================== */
@@ -39,15 +40,17 @@ const Lin_ConfigType Lin_I2C_Slave_Config = {
   ARRAY_SIZE(Lin_ChannelConfigs),
 };
 
-static uint8_t response[8] = {0x03, 0x7F, 0x10, 0x31, 0x55, 0x55, 0x55, 0x55};
 /* ================================ [ LOCALS    ] ============================================== */
 static Std_ReturnType Lin_Slave_DiagRequest(uint8_t channel, Lin_PduType *PduInfo,
                                             Std_ReturnType notifyResult) {
   Std_ReturnType ret = E_NOT_OK;
+  PduInfoType pdu;
 
   if (LIN_E_SLAVE_RECEIVED_OK == notifyResult) {
     if ((PduInfo->Dl == 8) && (0xD0 == PduInfo->Pid)) {
-      memcpy(response, PduInfo->SduPtr, 8);
+      pdu.SduDataPtr = PduInfo->SduPtr;
+      pdu.SduLength = PduInfo->Dl;
+      LinTp_RxIndication((PduIdType)channel, &pdu);
       ret = E_OK;
     }
   }
@@ -58,14 +61,16 @@ static Std_ReturnType Lin_Slave_DiagRequest(uint8_t channel, Lin_PduType *PduInf
 static Std_ReturnType Lin_Slave_DiagRespose(uint8_t channel, Lin_PduType *PduInfo,
                                             Std_ReturnType notifyResult) {
   Std_ReturnType ret = E_NOT_OK;
+  PduInfoType pdu;
 
   if (LIN_E_SLAVE_TRIGGER_TRANSMIT == notifyResult) {
     if ((PduInfo->Dl == 8) && (0xD1 == PduInfo->Pid)) {
-      memcpy(PduInfo->SduPtr, response, 8);
-      ret = E_OK;
+      pdu.SduDataPtr = PduInfo->SduPtr;
+      pdu.SduLength = PduInfo->Dl;
+      ret = LinTp_TriggerTransmit((PduIdType)channel, &pdu);
     }
   } else if (LIN_E_SLAVE_TRANSMIT_OK == notifyResult) {
-
+    LinTp_TxConfirmation((PduIdType)channel, E_OK);
     ret = E_OK;
   }
   return ret;
@@ -77,7 +82,7 @@ static Std_ReturnType Lin_Slave_ReadAnswerPatten(uint8_t channel, Lin_PduType *P
 
   if (LIN_E_SLAVE_TRIGGER_TRANSMIT == notifyResult) {
     if ((PduInfo->Dl == 1) && (0xE0 == PduInfo->Pid)) {
-      PduInfo->SduPtr[0] = response[0];
+      PduInfo->SduPtr[0] = 0xa5;
       ret = E_OK;
     }
   } else if (LIN_E_SLAVE_TRANSMIT_OK == notifyResult) {

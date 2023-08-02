@@ -90,6 +90,7 @@ Std_ReturnType Lin_Slave_I2C_Stop(uint8_t i2cPort) {
   uint8_t u8Data;
   if (0 == i2cPort) {
     IIC0_IBCR &= ~(1 << 4); /* set Rx Mode */
+    IIC0_IBCR |= (1 << 3);  /* ack = 1 */
     /* a dummy read then releases the SCL line so that the master can generate a STOP signal */
     u8Data = IIC0_IBDR;
     (void)u8Data;
