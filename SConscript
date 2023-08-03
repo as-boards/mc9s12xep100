@@ -11,6 +11,31 @@ ApplicationCanApp = query_application('CanApp')
 
 objsCanBL = Glob('miniblt/Sources/*.c') + Glob('mcal/Can.c') + Glob('mcal/Mcu.c')
 
+objsFlsDrv = Glob('mcal/Flash.c')
+
+
+@ register_application
+class ApplicationMC9S12FlashDriver(Application):
+    compiler = 'CWS12'
+
+    def signit(self):
+        sign = os.path.abspath('%s/../../GCC/Loader/Loader' % (BUILD_DIR))
+        if IsPlatformWindows():
+            sign += '.exe'
+        if os.path.isfile(sign):
+            target = '%s/MC9S12FlashDriver' % (BUILD_DIR)
+            s19T = target + '.s19'
+            cmd = '%s -f %s -s 1792 -S crc16' % (sign, s19T)
+            self.AddPostAction(cmd)
+
+    def config(self):
+        self.CPPPATH = ['$INFRAS']
+        self.Append(CPPPATH=['%s/miniblt/Sources' % (CWD)])
+        self.Append(LINKFLAGS=['-T', '%s/flsdrv/prm/Project.prm' % (CWD)])
+        self.source = objsFlsDrv
+        self.signit()
+
+
 @ register_application
 class ApplicationMC9S12CanBoot(ApplicationCanBL):
     compiler = 'CWS12'
@@ -18,6 +43,9 @@ class ApplicationMC9S12CanBoot(ApplicationCanBL):
     def platform_config(self):
         self.Append(CPPDEFINES=['BL_DISABLE_OTA', '__AS_BOOTLOADER__', 'DISABLE_CRC32',
                     'OS_TICKS_PER_SECOND=100', 'BL_USE_CRC_16', 'PDUR_DCM_CANTP_ZERO_COST',
+                                'BL_USE_BUILTIN_FLS_READ', 'USE_STDIO_OUT', 'USE_STD_DEBUG',
+                                'BL_FLSDRV_MEMORY_LOW=0x3900', 'BL_FLSDRV_MEMORY_HIGH=0x4000',
+                                'BL_APP_MEMORY_LOW=0x4000', 'BL_APP_MEMORY_HIGH=0xFBC000', 'BL_FINGER_PRINT_ADDRESS=0xFBBF00',
                                 'FLASH_DRIVER_STARTADDRESS=0x3900', 'FLASH_ERASE_SIZE=1024', 'FLASH_WRITE_SIZE=8'])
         self.Append(CPPPATH=['%s/miniblt/Sources' % (CWD)])
         self.Append(LINKFLAGS=['-T', '%s/miniblt/prm/Project.prm' % (CWD)])
@@ -30,6 +58,7 @@ class ApplicationMC9S12CanBoot(ApplicationCanBL):
             macro = 'USE_%s' % (libName.upper())
             self.Remove(CPPDEFINES=[macro])
         self.RegisterConfig('Dcm', cfgDcm, force=True)
+        self.LIBS.append('RingBuffer')
         self.source += objsCanBL
 
 
@@ -60,6 +89,7 @@ objsLinBL = Glob('miniblt/Sources/*.c') + Glob('mcal/Mcu.c') + Glob('mcal/Lin_Sl
 cfgLinSlaveI2C = Glob('config/Lin_Slave_I2C_Cfg.c')
 cfgLinTp = Glob('config/LinTp_Cfg.c')
 
+
 @ register_application
 class ApplicationMC9S12LinBoot(ApplicationLinBL):
     compiler = 'CWS12'
@@ -67,6 +97,9 @@ class ApplicationMC9S12LinBoot(ApplicationLinBL):
     def platform_config(self):
         self.Append(CPPDEFINES=['BL_DISABLE_OTA', '__AS_BOOTLOADER__', 'DISABLE_CRC32',
                     'OS_TICKS_PER_SECOND=100', 'BL_USE_CRC_16', 'PDUR_DCM_LINTP_ZERO_COST',
+                                'BL_USE_BUILTIN_FLS_READ', 'USE_STDIO_OUT', 'USE_STD_DEBUG',
+                                'BL_FLSDRV_MEMORY_LOW=0x3900', 'BL_FLSDRV_MEMORY_HIGH=0x4000',
+                                'BL_APP_MEMORY_LOW=0x4000', 'BL_APP_MEMORY_HIGH=0xFBC000', 'BL_FINGER_PRINT_ADDRESS=0xFBBF00',
                                 'FLASH_DRIVER_STARTADDRESS=0x3900', 'FLASH_ERASE_SIZE=1024', 'FLASH_WRITE_SIZE=8'])
         self.Append(CPPPATH=['%s/miniblt/Sources' % (CWD)])
         self.Append(LINKFLAGS=['-T', '%s/miniblt/prm/Project.prm' % (CWD)])
@@ -83,10 +116,13 @@ class ApplicationMC9S12LinBoot(ApplicationLinBL):
         self.Append(CPPDEFINES=['USE_LIN_SLAVE'])
         self.RegisterConfig('Dcm', cfgDcm, force=True)
         self.RegisterConfig('LinTp', cfgLinTp, force=True)
+        self.LIBS.append('RingBuffer')
         self.source += objsLinBL
 
 
-# build\nt\GCC\IsoTpSend\IsoTpSend.exe -v 1001 -t 0x0d -r 0x0f -b 20000 -d LIN.i2c/CH341_I2C -a 0xFFFF -s 20000
+# build\nt\GCC\IsoTpSend\IsoTpSend.exe -t 0x0d -r 0x0f -d LIN.i2c/CH341_I2C -n 0xFFFF -D 20000 -b 20000 -v 1001
+
+# build\nt\GCC\Loader\Loader.exe -t 0x0d -r 0x0f -d LIN.i2c/CH341_I2C -n 0xFFFF -D 20000 -b 20000 -S crc16 -a build\nt\GCC\MC9S12FlashDriver\MC9S12FlashDriver.s19.sign -f build\nt\GCC\MC9S12FlashDriver\MC9S12FlashDriver.s19.sign
 
 @register_application
 class ApplicationMC9S12LinBootRun(Application):

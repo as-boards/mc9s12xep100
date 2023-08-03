@@ -9,6 +9,8 @@
 #include "Os.h"
 #include "Std_Critical.h"
 #include "Std_Timer.h"
+#include "Flash.h"
+#include "ringbuffer.h"
 /* ================================ [ MACROS    ] ============================================== */
 #define CPU_FREQUENCY 32000000
 #ifdef USE_CLIB_STDIO_PRINTF
@@ -32,6 +34,12 @@
 
 #define ISRNO_VRTI VectorNumber_Vrti
 #define ISRNO_VSWI VectorNumber_Vswi
+
+#define IS_FLASH_ADDRESS(a)                                                                        \
+  ((((a) <= 0x8000) && ((a) >= 0x4000)) || (((a) <= 0xE000) && ((a) >= 0xC000)) ||                 \
+   ((((a) >> 16) <= 0xFC) && (((a) >> 16) >= 0xC0) && (((a)&0xFFFF) <= 0xC000) &&                  \
+    (((a)&0xFFFF) >= 0x8000)))
+
 /* ================================ [ TYPES     ] ============================================== */
 typedef __far void (*FP)();
 typedef struct {
@@ -66,12 +74,14 @@ extern uint32_t OsTickCounter;
 #else
 uint32_t OsTickCounter = 0;
 #endif
+
+RB_DECLARE(stdio_out, char, 1024);
 /* ================================ [ LOCALS    ] ============================================== */
 /* ================================ [ FUNCTIONS ] ============================================== */
 void TERMIO_PutChar(char c) {
-  while (!SCI0SR1_TDRE)
-    ;
-  SCI0DRL = c;
+  EnterCritical();
+  RB_PUSH(stdio_out, &c, 1);
+  ExitCritical();
 }
 
 void Mcu_Init(const Mcu_ConfigType *configPtr) {
@@ -132,12 +142,21 @@ void Mcu_PerformReset(void) {
 }
 
 void Dcm_PerformReset(uint8_t resetType) {
-  Mcu_PerformReset();
+  // Mcu_PerformReset();
+  printf("skip reset\n");
 }
 
-#ifdef USE_BL
-void BL_AliveIndicate(void) {
-  LEDCPU = ~LEDCPU;
+void stdio_main_function(void) {
+  uint8_t c;
+  rb_size_t sz;
+  if (SCI0SR1_TDRE) {
+    EnterCritical();
+    sz = RB_POP(stdio_out, &c, 1);
+    ExitCritical();
+    if (sz > 0) {
+      SCI0DRL = c;
+    }
+  }
 
 #ifdef USE_SHELL
   if (SCI0SR1_RDRF) {
@@ -147,6 +166,11 @@ void BL_AliveIndicate(void) {
     SHELL_input(ch);
   }
 #endif
+}
+
+#ifdef USE_BL
+void BL_AliveIndicate(void) {
+  LEDCPU = ~LEDCPU;
 }
 #endif
 
@@ -307,6 +331,43 @@ interrupt ISRNO_VRTI void Isr_SystemTick(void) {
 
 #if !defined(USE_OS)
 interrupt ISRNO_VSWI void Isr_SoftwareInterrupt(void) {
+}
+#endif
+
+#ifdef BL_USE_BUILTIN_FLS_READ
+void FlashRead(tFlashParam *FlashParam) {
+  tAddress address;
+  tLength length;
+  tData *data;
+
+  length = FlashParam->length;
+  address = FlashParam->address;
+  data = FlashParam->data;
+  if (FALSE == IS_FLASH_ADDRESS(address)) {
+    FlashParam->errorcode = kFlashInvalidAddress;
+  } else if (FALSE == IS_FLASH_ADDRESS(address + length)) {
+    FlashParam->errorcode = kFlashInvalidSize;
+  } else if ((address & 0xFF0000) != ((address + length) & 0xFF0000)) {
+    /* not in the same page */
+    FlashParam->errorcode = kFlashInvalidSize;
+  } else if (NULL == data) {
+    FlashParam->errorcode = kFlashInvalidData;
+  } else {
+    tLength i;
+    uint8_t savedPPAGE = PPAGE;
+    char *dst = (char *)data;
+    const char *src = (const char *)address;
+
+    EnterCritical();
+    PPAGE = address >> 16;
+    for (i = 0; i < length; i++) {
+      dst[i] = src[i];
+    }
+    PPAGE = savedPPAGE;
+    ExitCritical();
+
+    FlashParam->errorcode = kFlashOk;
+  }
 }
 #endif
 #pragma CODE_SEG DEFAULT
