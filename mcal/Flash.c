@@ -75,6 +75,9 @@ void FlashErase(tFlashParam *FlashParam) {
     } else if ((FALSE == IS_FLASH_ADDRESS(address + length)) ||
                (FALSE == FLASH_IS_ERASE_ADDRESS_ALIGNED(address + length))) {
       FlashParam->errorcode = kFlashInvalidSize;
+    } else if ((address & 0xFF0000) != ((address + length - 1) & 0xFF0000)) {
+      /* not in the same page */
+      FlashParam->errorcode = kFlashInvalidSize;
     } else {
       while ((length > 0) && (kFlashOk == FlashParam->errorcode)) {
         if (address & 0xFF0000) {
@@ -142,6 +145,9 @@ void FlashWrite(tFlashParam *FlashParam) {
     } else if ((FALSE == IS_FLASH_ADDRESS(address + length)) ||
                (FALSE == FLASH_IS_WRITE_ADDRESS_ALIGNED(length))) {
       FlashParam->errorcode = kFlashInvalidSize;
+    } else if ((address & 0xFF0000) != ((address + length - 1) & 0xFF0000)) {
+      /* not in the same page */
+      FlashParam->errorcode = kFlashInvalidSize;
     } else if (NULL == data) {
       FlashParam->errorcode = kFlashInvalidData;
     } else {
@@ -183,14 +189,14 @@ void FlashWrite(tFlashParam *FlashParam) {
           uint16 addrInWindow = address & 0xFFFF;
 
           PPAGE = (address >> 16) & 0xFF;
-          if (((*(volatile uint32 *)addrInWindow) != data[0]) ||
-              ((*(volatile uint32 *)(addrInWindow + 4)) != data[1])) {
+          if (((*(volatile uint32 *)addrInWindow) != ((volatile uint32 *)data)[0]) ||
+              ((*(volatile uint32 *)(addrInWindow + 4)) != ((volatile uint32 *)data)[1])) {
             FlashParam->errorcode = kFlashFailed;
             FlashParam->errorAddress = address;
           }
           PPAGE = savedPage;
 
-          data += 2;
+          data += 8;
           address += 8;
           length -= 8;
         }

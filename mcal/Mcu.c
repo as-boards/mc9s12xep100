@@ -11,6 +11,7 @@
 #include "Std_Timer.h"
 #include "Flash.h"
 #include "ringbuffer.h"
+#include "Dcm.h"
 /* ================================ [ MACROS    ] ============================================== */
 #define CPU_FREQUENCY 32000000
 #ifdef USE_CLIB_STDIO_PRINTF
@@ -19,6 +20,12 @@
 
 #define LEDCPU PORTK_PK4
 #define LEDCPU_dir DDRK_DDRK4
+
+#define LED PORTB
+#define LED_dir DDRB
+
+#define KEY PTIH
+#define KEY_dir DDRH
 
 #ifdef USE_SDCARD
 #define CD PTIJ_PTIJ0
@@ -31,9 +38,13 @@
 #define SD_deselect() PTS_PTS7 = 1
 #define PTS_INIT() DDRS |= 0xe0
 #endif
-
+#ifdef __AS_BOOTLOADER__
 #define ISRNO_VRTI VectorNumber_Vrti
 #define ISRNO_VSWI VectorNumber_Vswi
+#else
+#define ISRNO_VRTI
+#define ISRNO_VSWI
+#endif
 
 #define IS_FLASH_ADDRESS(a)                                                                        \
   ((((a) <= 0x8000) && ((a) >= 0x4000)) || (((a) <= 0xE000) && ((a) >= 0xC000)) ||                 \
@@ -41,19 +52,21 @@
     (((a)&0xFFFF) >= 0x8000)))
 
 /* ================================ [ TYPES     ] ============================================== */
-typedef __far void (*FP)();
+typedef void __far (*FP)(void);
+
 typedef struct {
   uint16 tag; /* 2 bytes */
   FP entry;   /* 3 bytes */
   uint8 reserved;
 } AppTag_Type;
+
 /* ================================ [ DECLARES  ] ============================================== */
 extern void OsTick(void);
 
 void StartOsTick(void);
 
 #if !defined(__AS_BOOTLOADER__)
-extern const FP tisr_pc[];
+extern const uint16_t tisr_pc[];
 #endif
 
 #ifdef USE_OS
@@ -121,14 +134,44 @@ void Mcu_Init(const Mcu_ConfigType *configPtr) {
   SCI0CR2 = 0x0C; /* enable RX and TX, no interrupt */
 
   LEDCPU_dir = 1;
+  LEDCPU = 1;
+  LED_dir = 0xff;
+  LED = 0xff;
+  KEY_dir = 0;
 
 #ifndef USE_OS
   StartOsTick();
 #endif
 
   asm cli; // enable ISR
+}
 
-  printf("MC9S12 is ready\n");
+void App_EnterProgramSession(void) {
+#ifdef BL_FLSDRV_MEMORY_LOW
+  uint32_t *magic = (uint32_t *)BL_FLSDRV_MEMORY_LOW;
+  Dcm_ProgConditionsType *cond = (Dcm_ProgConditionsType *)(BL_FLSDRV_MEMORY_LOW + 4);
+  EnterCritical();
+  *magic = 0x12345678;
+  cond->ConnectionId = 0;
+  cond->TesterAddress = 0;
+  cond->Sid = 0x10;
+  cond->SubFncId = 0x02;
+  cond->Reprograming = TRUE;
+  cond->ApplUpdated = TRUE;
+  cond->ResponseRequired = TRUE;
+  Dcm_PerformReset(1);
+  ExitCritical();
+#endif
+}
+void User_Init(void) {
+}
+
+void App_AliveIndicate(void) {
+  LEDCPU = ~LEDCPU;
+  LED = KEY;
+}
+
+void User_MainTask10ms(void) {
 }
 
 uint32_t McuE_GetSystemClock(void) {
@@ -142,8 +185,7 @@ void Mcu_PerformReset(void) {
 }
 
 void Dcm_PerformReset(uint8_t resetType) {
-  // Mcu_PerformReset();
-  printf("skip reset\n");
+  Mcu_PerformReset();
 }
 
 void stdio_main_function(void) {
@@ -171,6 +213,7 @@ void stdio_main_function(void) {
 #ifdef USE_BL
 void BL_AliveIndicate(void) {
   LEDCPU = ~LEDCPU;
+  LED = KEY;
 }
 #endif
 
@@ -347,7 +390,7 @@ void FlashRead(tFlashParam *FlashParam) {
     FlashParam->errorcode = kFlashInvalidAddress;
   } else if (FALSE == IS_FLASH_ADDRESS(address + length)) {
     FlashParam->errorcode = kFlashInvalidSize;
-  } else if ((address & 0xFF0000) != ((address + length) & 0xFF0000)) {
+  } else if ((address & 0xFF0000) != ((address + length - 1) & 0xFF0000)) {
     /* not in the same page */
     FlashParam->errorcode = kFlashInvalidSize;
   } else if (NULL == data) {

@@ -15,7 +15,7 @@
 #define I2C_MODE_READ 1
 #define I2C_MODE_WRITE 2
 
-#define LIN_I2C_USE_TRACE_EVENT
+//#define LIN_I2C_USE_TRACE_EVENT
 #ifdef LIN_I2C_USE_TRACE_EVENT
 #define LIN_I2C_PUT_EVENT(evt)                                                                     \
   do {                                                                                             \
@@ -26,6 +26,12 @@
   } while (0)
 #else
 #define LIN_I2C_PUT_EVENT(evt)
+#endif
+
+#ifdef __AS_BOOTLOADER__
+#define ISRNO_VIIC0 VectorNumber_Viic0
+#else
+#define ISRNO_VIIC0
 #endif
 /* ================================ [ TYPES     ] ============================================== */
 /* ================================ [ DECLARES  ] ============================================== */
@@ -64,10 +70,12 @@ Std_ReturnType Lin_Slave_I2C_HwRead(uint8_t i2cPort, uint8_t *data) {
 Std_ReturnType Lin_Slave_I2C_HwWrite(uint8_t i2cPort, uint8_t data) {
   Std_ReturnType ret = E_NOT_OK;
   if (0 == i2cPort) {
-    if (0 != (IIC0_IBCR & (1 << 4))) { /* Tx Mode */
-      IIC0_IBDR = data;
-      ret = E_OK;
-    }
+    // if (0 != (IIC0_IBCR & (1 << 4))) { /* Tx Mode */
+    /* anyway force to Tx mode */
+    IIC0_IBCR |= (1 << 4); /* set Tx Mode */
+    IIC0_IBDR = data;
+    ret = E_OK;
+    //}
   }
   return ret;
 }
@@ -117,7 +125,7 @@ void Lin_Slave_I2C_HwMainFunction(uint8_t i2cPort) {
 }
 
 #pragma CODE_SEG __NEAR_SEG NON_BANKED
-interrupt VectorNumber_Viic0 void Lin_Slave_I2C_ISR(void) {
+interrupt ISRNO_VIIC0 void Lin_Slave_I2C_ISR(void) {
   uint8_t u8Status = IIC0_IBSR;
   uint8_t u8Data;
 

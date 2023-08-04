@@ -12,6 +12,9 @@
 #include <stdio.h>
 /* ================================ [ MACROS    ] ============================================== */
 #define APP_TAG_ADDR 0xC000
+
+#define F1 PTIH_PTIH4
+#define F1_dir DDRH_DDRH4
 /* ================================ [ TYPES     ] ============================================== */
 typedef __far void (*FP)();
 typedef struct {
@@ -26,11 +29,20 @@ tFlashHeader FlashDriverRam @0x3900;
 #pragma DATA_SEG DEFAULT
 /* ================================ [ LOCALS    ] ============================================== */
 /* ================================ [ FUNCTIONS ] ============================================== */
+Std_ReturnType BL_IsAppValid(void) {
+  Std_ReturnType ret = E_NOT_OK;
+  AppTag_Type *appTag = (AppTag_Type *)APP_TAG_ADDR;
+
+  if ((0xA55A == appTag->tag) && (0x5A == appTag->reserved) && (NULL != appTag->entry)) {
+    ret = E_OK;
+  }
+  return ret;
+}
+
 void application_main(void) {
   AppTag_Type *appTag = (AppTag_Type *)APP_TAG_ADDR;
 
   if ((0xA55A == appTag->tag) && (0x5A == appTag->reserved) && (NULL != appTag->entry)) {
-    printf("jmp %X\n", (uint32)appTag->entry);
     CRGINT_RTIE = 0; /* stop os tick ISR */
     appTag->entry();
   }
@@ -43,7 +55,13 @@ void BL_JumpToApp(void) {
 boolean BL_IsUpdateRequested(void) {
   boolean r = FALSE;
   uint32_t *magic = (uint32_t *)&FlashHeader;
+  
+  F1_dir = 0;
   if (0x12345678 == *magic) {
+    r = TRUE;
+  }
+
+  if (0 == F1) {
     r = TRUE;
   }
 
