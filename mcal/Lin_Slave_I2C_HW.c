@@ -51,7 +51,7 @@ void Lin_Slave_I2C_HwInit(uint8_t i2cPort, uint8_t devAddr, uint32_t baudrate) {
     IIC0_IBSR_IBAL = 1; /* clear IBAL flag */
     IIC0_IBCR2 = 0x00;  /* disable general call, 7 bit address*/
     IIC0_IBAD = (devAddr & 0x7F) << 1;
-    IIC0_IBCR = 0xC8; /* enable IIC and enable interrupt, no ack */
+    IIC0_IBCR = 0xC0; /* enable IIC and enable interrupt, with ack */
     bI2C0Busy = FALSE;
   }
 }
@@ -98,7 +98,7 @@ Std_ReturnType Lin_Slave_I2C_Stop(uint8_t i2cPort) {
   uint8_t u8Data;
   if (0 == i2cPort) {
     IIC0_IBCR &= ~(1 << 4); /* set Rx Mode */
-    IIC0_IBCR |= (1 << 3);  /* ack = 1 */
+    IIC0_IBCR &= ~(1 << 3); /* ack = 0 */
     /* a dummy read then releases the SCL line so that the master can generate a STOP signal */
     u8Data = IIC0_IBDR;
     (void)u8Data;
@@ -142,6 +142,7 @@ interrupt ISRNO_VIIC0 void Lin_Slave_I2C_ISR(void) {
   if (u8Status & (1 << 4)) { /* IBAL set */
     Lin_Slave_I2C_Event(0, LIN_EVENT_ERROR);
   } else if (u8Status & (1 << 6)) { /* Addressed as a Slave Bit is set */
+    IIC0_IBCR &= ~(1 << 3);         /* ack = 0 */
     if (u8Status & (1 << 2)) {      /* SRW is set */
       IIC0_IBCR |= (1 << 4);        /* set Tx Mode */
       Lin_Slave_I2C_Event(0, LIN_EVENT_READ);

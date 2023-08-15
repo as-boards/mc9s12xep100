@@ -150,7 +150,7 @@ class ApplicationMC9S12LinApp(ApplicationLinApp):
 
 # build\nt\GCC\IsoTpSend\IsoTpSend.exe -t 0x0d -r 0x0f -d LIN.i2c/CH341_I2C -n 0xFFFF -D 20000 -b 100000 -v 1001
 
-# build\nt\GCC\Loader\Loader.exe -t 0x0d -r 0x0f -d LIN.i2c/CH341_I2C -n 0xFFFF -D 20000 -b 100000 -S crc16 -a build/nt/GCC/MC9S12LinApp/MC9S12LinApp.s19 -f build\nt\GCC\MC9S12FlashDriver\MC9S12FlashDriver.s19.sign
+# build\nt\GCC\Loader\Loader.exe -t 0x51d0 -r 0x51d1 -d LIN.i2c/CH341_I2C -n 0xFFFF -D 20000 -b 100000 -S crc16 -a build/nt/GCC/MC9S12LinApp/MC9S12LinApp.s19 -f build\nt\GCC\MC9S12FlashDriver\MC9S12FlashDriver.s19.sign
 
 @register_application
 class ApplicationMC9S12LinBootRun(Application):
