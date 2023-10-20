@@ -30,7 +30,7 @@ class ApplicationMC9S12FlashDriver(Application):
 
     def config(self):
         self.CPPPATH = ['$INFRAS']
-        self.Append(CPPPATH=['%s/miniblt/Sources' % (CWD)])
+        self.Append(CPPPATH=['%s/miniblt/Sources' % (CWD), '%s/stdinc' % (CWD)])
         self.Append(LINKFLAGS=['-T', '%s/flsdrv/prm/Project.prm' % (CWD)])
         self.source = objsFlsDrv
         self.signit()
@@ -47,7 +47,7 @@ class ApplicationMC9S12CanBoot(ApplicationCanBL):
                                 'BL_FLSDRV_MEMORY_LOW=0x3900', 'BL_FLSDRV_MEMORY_HIGH=0x4000', 'FL_USE_WRITE_WINDOW_BUFFER',
                                 'BL_APP_MEMORY_LOW=0x4000', 'BL_APP_MEMORY_HIGH=0xFAC000', 'BL_FINGER_PRINT_ADDRESS=0xFB8000',
                                 'FLASH_DRIVER_STARTADDRESS=0x3900', 'FLASH_ERASE_SIZE=1024', 'FLASH_WRITE_SIZE=8'])
-        self.Append(CPPPATH=['%s/miniblt/Sources' % (CWD)])
+        self.Append(CPPPATH=['%s/miniblt/Sources' % (CWD), '%s/stdinc' % (CWD)])
         self.Append(LINKFLAGS=['-T', '%s/miniblt/prm/Project.prm' % (CWD)])
 
     def config(self):
@@ -104,7 +104,7 @@ class ApplicationMC9S12LinBoot(ApplicationLinBL):
                                 'BL_FLSDRV_MEMORY_LOW=0x3900', 'BL_FLSDRV_MEMORY_HIGH=0x4000', 'FL_USE_WRITE_WINDOW_BUFFER',
                                 'BL_APP_MEMORY_LOW=0x4000', 'BL_APP_MEMORY_HIGH=0xFAC000', 'BL_FINGER_PRINT_ADDRESS=0xFB8000',
                                 'FLASH_DRIVER_STARTADDRESS=0x3900', 'FLASH_ERASE_SIZE=1024', 'FLASH_WRITE_SIZE=8'])
-        self.Append(CPPPATH=['%s/miniblt/Sources' % (CWD)])
+        self.Append(CPPPATH=['%s/miniblt/Sources' % (CWD), '%s/stdinc' % (CWD)])
         self.Append(LINKFLAGS=['-T', '%s/miniblt/prm/Project.prm' % (CWD)])
 
     def config(self):
@@ -129,8 +129,8 @@ class ApplicationMC9S12LinApp(ApplicationLinApp):
 
     def platform_config(self):
         self.Append(CPPDEFINES=['OS_TICKS_PER_SECOND=100', 'BL_FLSDRV_MEMORY_LOW=0x3900',
-                    'PDUR_DCM_LINTP_ZERO_COST', 'USE_STDIO_OUT', 'USE_STD_DEBUG',])
-        self.Append(CPPPATH=['%s/Project/Sources' % (CWD)])
+                    'PDUR_DCM_LINTP_ZERO_COST', 'USE_STDIO_OUT', 'USE_STD_DEBUG', ])
+        self.Append(CPPPATH=['%s/Project/Sources' % (CWD), '%s/stdinc' % (CWD)])
         self.Append(LINKFLAGS=['-T', '%s/Project/prm/Project.prm' % (CWD)])
 
     def config(self):
