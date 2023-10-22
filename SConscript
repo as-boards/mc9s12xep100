@@ -85,11 +85,14 @@ class ApplicationMC9S12CanBootRun(Application):
 ApplicationLinBL = query_application('LinBL')
 ApplicationLinApp = query_application('LinApp')
 
-objsLinBL = Glob('miniblt/Sources/*.c') + Glob('mcal/Mcu.c') + Glob('mcal/Lin_Slave_I2C_HW.c')
-objsLinApp = Glob('Project/Sources/*.c') + Glob('mcal/Mcu.c') + \
-    Glob('mcal/Lin_Slave_I2C_HW.c') + Glob('config/vectors.c')
+
+objsLinI2C = Glob('mcal/Lin_Slave_I2C_HW.c')
+objsLinSPI = Glob('mcal/Lin_Slave_Spi.c')
+objsLinBL = Glob('miniblt/Sources/*.c') + Glob('mcal/Mcu.c')
+objsLinApp = Glob('Project/Sources/*.c') + Glob('mcal/Mcu.c') + Glob('config/vectors.c')
 
 cfgLinSlaveI2C = Glob('config/Lin_Slave_I2C_Cfg.c')
+cfgLinIf = Glob('config/LinIf_Cfg.c')
 cfgLinTp = Glob('config/LinTp_Cfg.c')
 
 
@@ -107,7 +110,7 @@ class ApplicationMC9S12LinBoot(ApplicationLinBL):
         self.Append(CPPPATH=['%s/miniblt/Sources' % (CWD), '%s/stdinc' % (CWD)])
         self.Append(LINKFLAGS=['-T', '%s/miniblt/prm/Project.prm' % (CWD)])
 
-    def config(self):
+    def config_lin_i2c(self):
         super().config()
         for libName in ['LinIf']:
             if libName in self.LIBS:
@@ -120,7 +123,18 @@ class ApplicationMC9S12LinBoot(ApplicationLinBL):
         self.RegisterConfig('Dcm', cfgDcm, force=True)
         self.RegisterConfig('LinTp', cfgLinTp, force=True)
         self.LIBS.append('RingBuffer')
-        self.source += objsLinBL
+        self.source += objsLinBL + objsLinI2C
+
+    def config_lin_spi(self):
+        super().config()
+        self.RegisterConfig('Dcm', cfgDcm, force=True)
+        self.RegisterConfig('LinTp', cfgLinTp, force=True)
+        self.Append(CPPDEFINES=['LIN_USE_EXT_ID'])
+        self.LIBS.append('RingBuffer')
+        self.source += objsLinBL + objsLinSPI
+
+    def config(self):
+        self.config_lin_spi()
 
 
 @ register_application
@@ -133,7 +147,7 @@ class ApplicationMC9S12LinApp(ApplicationLinApp):
         self.Append(CPPPATH=['%s/Project/Sources' % (CWD), '%s/stdinc' % (CWD)])
         self.Append(LINKFLAGS=['-T', '%s/Project/prm/Project.prm' % (CWD)])
 
-    def config(self):
+    def config_lin_i2c(self):
         super().config()
         for libName in ['LinIf', 'Dem', 'NvM', 'Fee', 'Fls', 'Ea', 'Eep']:
             if libName in self.LIBS:
@@ -145,7 +159,22 @@ class ApplicationMC9S12LinApp(ApplicationLinApp):
         self.Append(CPPDEFINES=['USE_LIN_SLAVE'])
         self.RegisterConfig('LinTp', cfgLinTp, force=True)
         self.LIBS.append('RingBuffer')
-        self.source += objsLinApp
+        self.source += objsLinApp + objsLinI2C
+
+    def config_lin_spi(self):
+        super().config()
+        for libName in ['Dem', 'NvM', 'Fee', 'Fls', 'Ea', 'Eep']:
+            if libName in self.LIBS:
+                self.LIBS.remove(libName)
+            macro = 'USE_%s' % (libName.upper())
+            self.Remove(CPPDEFINES=[macro])
+        self.RegisterConfig('LinTp', cfgLinTp, force=True)
+        self.Append(CPPDEFINES=['LIN_USE_EXT_ID'])
+        self.LIBS.append('RingBuffer')
+        self.source += objsLinApp + objsLinSPI
+
+    def config(self):
+        self.config_lin_spi()
 
 
 # build\nt\GCC\IsoTpSend\IsoTpSend.exe -t 0x0d -r 0x0f -d LIN.i2c/CH341_I2C -n 0xFFFF -D 20000 -b 100000 -v 1001
