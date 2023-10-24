@@ -9,6 +9,7 @@
 #include "Lin.h"
 #include "LinIf.h"
 #include <string.h>
+#include "Std_Timer.h"
 /* ================================ [ MACROS    ] ============================================== */
 #ifdef __AS_BOOTLOADER__
 #define ISRNO_VSPI0 VectorNumber_Vspi0
@@ -33,8 +34,11 @@
 #define LIN_SPI_ID 1
 #define LIN_SPI_DLC 2
 #define LIN_SPI_RX_DATA 3
-#define LIN_SPI_TX_DATA 4
-#define LIN_SPI_IGNORE 5
+#define LIN_SPI_RX_CHECKSUM 4
+#define LIN_SPI_TX_DATA 5
+#define LIN_SPI_TX_CHECKSUM 6
+#define LIN_SPI_TX_CHECKSUM_DONE 7
+#define LIN_SPI_IGNORE 8
 
 #ifndef LIN_MAX_DATA_SIZE
 #define LIN_MAX_DATA_SIZE 64
@@ -45,7 +49,9 @@ typedef struct {
   uint16_t id;
   uint8_t dlc;
   uint8_t data[LIN_MAX_DATA_SIZE];
+  uint8_t checksum;
   uint8_t index;
+  Std_TimerType timer;
 } Lin_SpiContextType;
 /* ================================ [ DECLARES  ] ============================================== */
 /* ================================ [ DATAS     ] ============================================== */
@@ -56,6 +62,17 @@ static uint16_t u16SpiIndex = 0;
 
 static Lin_SpiContextType lSpiContext;
 /* ================================ [ LOCALS    ] ============================================== */
+static uint8_t Lin_SpiChecksum(Lin_SpiContextType *context) {
+  uint8_t checksum = 0;
+  int i;
+  checksum += (lSpiContext.id >> 8) & 0xFF;
+  checksum += lSpiContext.id & 0xFF;
+  checksum += lSpiContext.dlc;
+  for (i = 0; i < lSpiContext.dlc; i++) {
+    checksum += lSpiContext.data[i];
+  }
+  return ~checksum;
+}
 /* ================================ [ FUNCTIONS ] ============================================== */
 void Lin_Init(const Lin_ConfigType *ConfigPtr) {
 }
@@ -63,6 +80,7 @@ void Lin_Init(const Lin_ConfigType *ConfigPtr) {
 Std_ReturnType Lin_SetControllerMode(uint8_t Channel, Lin_ControllerStateType Transition) {
   if (LIN_CS_STARTED == Transition) {
     memset(&lSpiContext, 0, sizeof(lSpiContext));
+    Std_TimerStop(&lSpiContext.timer);
     SPI0CR2 = 0x00;
     SPI0CR1 = 0b11100100; /* SPI enable and slave mode, CPOL=0 CPHA=1 */
   } else {
@@ -80,6 +98,13 @@ void Lin_MainFunction_Read(void) {
 }
 
 void Lin_MainFunction(void) {
+  std_time_t elapsed;
+  if (Std_IsTimerStarted(&lSpiContext.timer)) {
+    elapsed = Std_GetTimerElapsedTime(&lSpiContext.timer);
+    if (elapsed > 50000) {
+      lSpiContext.state = LIN_SPI_IDEL;
+    }
+  }
 }
 
 #pragma CODE_SEG __NEAR_SEG NON_BANKED
@@ -97,6 +122,7 @@ interrupt ISRNO_VSPI0 void Lin_Slave_SPI_ISR(void) {
       LIN_SPI_PUT_EVENT(u8Data);
       lSpiContext.id = u8Data << 8;
       lSpiContext.state = LIN_SPI_ID;
+      Std_TimerStart(&lSpiContext.timer);
       break;
     case LIN_SPI_ID:
       SPI0DRL = 0xF2;
@@ -124,6 +150,7 @@ interrupt ISRNO_VSPI0 void Lin_Slave_SPI_ISR(void) {
           LIN_SPI_PUT_EVENT(pdu.SduPtr[0]);
           lSpiContext.state = LIN_SPI_TX_DATA;
           memcpy(lSpiContext.data, pdu.SduPtr, lSpiContext.dlc);
+          lSpiContext.checksum = Lin_SpiChecksum(&lSpiContext);
         } else {
           SPI0DRL = 0xF4;
           lSpiContext.state = LIN_SPI_IGNORE;
@@ -139,22 +166,41 @@ interrupt ISRNO_VSPI0 void Lin_Slave_SPI_ISR(void) {
       lSpiContext.data[lSpiContext.index] = u8Data;
       lSpiContext.index++;
       if (lSpiContext.index >= lSpiContext.dlc) {
-        lSpiContext.state = LIN_SPI_IDEL;
+        lSpiContext.state = LIN_SPI_RX_CHECKSUM;
+      }
+      break;
+    case LIN_SPI_RX_CHECKSUM:
+      SPI0DRL = 0xF7;
+      LIN_SPI_PUT_EVENT(u8Data);
+      lSpiContext.state = LIN_SPI_IDEL;
+      lSpiContext.checksum = Lin_SpiChecksum(&lSpiContext);
+      if (u8Data == lSpiContext.checksum) {
         LinIf_RxIndication(0, lSpiContext.data);
       }
+      Std_TimerStop(&lSpiContext.timer);
       break;
     case LIN_SPI_TX_DATA:
       lSpiContext.index++;
       if (lSpiContext.index >= lSpiContext.dlc) {
-        SPI0DRL = 0xF7;
-        lSpiContext.state = LIN_SPI_IDEL;
+        SPI0DRL = lSpiContext.checksum;
+        LIN_SPI_PUT_EVENT(lSpiContext.checksum);
+        lSpiContext.state = LIN_SPI_TX_CHECKSUM;
       } else {
         SPI0DRL = lSpiContext.data[lSpiContext.index];
         LIN_SPI_PUT_EVENT(lSpiContext.data[lSpiContext.index]);
       }
       break;
-    case LIN_SPI_IGNORE:
+    case LIN_SPI_TX_CHECKSUM:
       SPI0DRL = 0xF8;
+      lSpiContext.state = LIN_SPI_TX_CHECKSUM_DONE;
+      break;
+    case LIN_SPI_TX_CHECKSUM_DONE:
+      SPI0DRL = 0xF9;
+      lSpiContext.state = LIN_SPI_IDEL;
+      Std_TimerStop(&lSpiContext.timer);
+      break;
+    case LIN_SPI_IGNORE:
+      SPI0DRL = 0xFA;
       lSpiContext.index++;
       if (lSpiContext.index >= lSpiContext.dlc) {
         lSpiContext.state = LIN_SPI_IDEL;
@@ -166,8 +212,8 @@ interrupt ISRNO_VSPI0 void Lin_Slave_SPI_ISR(void) {
       break;
     }
   } else if (u8Status & (1 << 5)) { /* SPTEF */
-    SPI0DRL = 0xF9;
-    LIN_SPI_PUT_EVENT(0xF9);
+    SPI0DRL = 0xFB;
+    LIN_SPI_PUT_EVENT(0xFB);
   } else {
   }
 }
